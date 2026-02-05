@@ -1,0 +1,8 @@
+[include]
+    path = /home/user/.gitconfig.host
+
+[gpg]
+    format = ssh
+
+[gpg "ssh"]
+    allowedSignersFile = /home/user/.ssh/allowed_signers

@@ -1,0 +1,80 @@
+#!/bin/bash
+# OpenCode Docker wrapper - run from any directory
+# Symlink this to ~/bin/oc or add to PATH
+
+IMAGE_NAME="mheers/opencode-sandbox:latest"
+# Generate unique container name based on current directory
+DIR_HASH=$(echo "$(pwd)" | md5sum | cut -c1-8)
+CONTAINER_NAME="opencode-${DIR_HASH}"
+USER_ID=$(id -u)
+GROUP_ID=$(id -g)
+RUNTIME_DIR="/run/user/${USER_ID}"
+GPG_SOCKET_DIR="${RUNTIME_DIR}/gnupg"
+GPG_SOCKET_MOUNT=""
+GPG_TTY_ENV=""
+SSH_AUTH_MOUNT=""
+SSH_AUTH_ENV=""
+DOCKER_GID=""
+DOCKER_GROUP_ADD=""
+
+if [ -S "${GPG_SOCKET_DIR}/S.gpg-agent" ]; then
+    GPG_SOCKET_MOUNT="-v ${GPG_SOCKET_DIR}:${GPG_SOCKET_DIR} -v ${GPG_SOCKET_DIR}/S.gpg-agent:/home/user/.gnupg/S.gpg-agent"
+    GPG_TTY_ENV="-e GPG_TTY=$(tty)"
+fi
+
+if [ -S "${SSH_AUTH_SOCK}" ]; then
+    SSH_AUTH_MOUNT="-v ${SSH_AUTH_SOCK}:/ssh-agent"
+    SSH_AUTH_ENV="-e SSH_AUTH_SOCK=/ssh-agent"
+fi
+
+if [ -S /var/run/docker.sock ]; then
+    DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
+    DOCKER_GROUP_ADD="--group-add ${DOCKER_GID}"
+fi
+
+
+# Check if container already exists and is running
+if docker ps -q -f name="^${CONTAINER_NAME}$" | grep -q .; then
+    echo "Container ${CONTAINER_NAME} already running, attaching..."
+    docker exec -it "${CONTAINER_NAME}" /usr/bin/zsh -i "$@"
+    exit $?
+fi
+
+# Check if container exists but is stopped
+if docker ps -aq -f name="^${CONTAINER_NAME}$" | grep -q .; then
+    echo "Starting existing container ${CONTAINER_NAME}..."
+    docker start "${CONTAINER_NAME}"
+    docker exec -it "${CONTAINER_NAME}" /usr/bin/zsh -i "$@"
+    exit $?
+fi
+
+docker run -it --rm \
+    --name "${CONTAINER_NAME}" \
+    --network host \
+    --user "${USER_ID}:${GROUP_ID}" \
+    -e HOME=/home/user \
+    -e PATH=/home/user/bin:/home/user/.local/bin:/home/user/go/bin:/usr/local/bin:/usr/bin:/bin \
+    -v "$(pwd)":/home/user/project \
+    -v "${HOME}/.opencode:/home/user/.opencode" \
+    -v "${HOME}/.config/opencode:/home/user/.config/opencode" \
+    -v "${HOME}/.local/share/opencode:/home/user/.local/share/opencode" \
+    --tmpfs /home/user/.local/state:uid="${USER_ID}",gid="${GROUP_ID}",mode=700 \
+    -v "${HOME}/.local/state/opencode:/home/user/.local/state/opencode" \
+    -e AGENT_BROWSER_SOCKET_DIR=/home/user/.local/state/agent-browser \
+    -e AGENT_BROWSER_HOME=/opt/agent-browser \
+    -v "${HOME}/.gitconfig:/home/user/.gitconfig.host:ro" \
+    -v "$(pwd)/.gitconfig.oc:/home/user/.gitconfig:ro" \
+    -v "${HOME}/.gnupg:/home/user/.gnupg" \
+    -v "${HOME}/.ssh:/home/user/.ssh:ro" \
+    -v "/var/run/docker.sock:/var/run/docker.sock" \
+    ${GPG_SOCKET_MOUNT} \
+    ${SSH_AUTH_MOUNT} \
+    --tmpfs /home/user/.cache:uid="${USER_ID}",gid="${GROUP_ID}",mode=700 \
+    -v "${HOME}/.cache/ms-playwright:/home/user/.cache/ms-playwright" \
+    -w /home/user/project \
+    ${DOCKER_GROUP_ADD} \
+    -e GIT_CONFIG_GLOBAL=/home/user/.gitconfig \
+    --entrypoint /usr/bin/zsh \
+    ${GPG_TTY_ENV} \
+    ${SSH_AUTH_ENV} \
+    "${IMAGE_NAME}" -i "$@"
