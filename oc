@@ -16,6 +16,7 @@ SSH_AUTH_MOUNT=""
 SSH_AUTH_ENV=""
 DOCKER_GID=""
 DOCKER_GROUP_ADD=""
+GITCONFIG_MOUNT=""
 
 if [ -S "${GPG_SOCKET_DIR}/S.gpg-agent" ]; then
     GPG_SOCKET_MOUNT="-v ${GPG_SOCKET_DIR}:${GPG_SOCKET_DIR} -v ${GPG_SOCKET_DIR}/S.gpg-agent:/home/user/.gnupg/S.gpg-agent"
@@ -30,6 +31,10 @@ fi
 if [ -S /var/run/docker.sock ]; then
     DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
     DOCKER_GROUP_ADD="--group-add ${DOCKER_GID}"
+fi
+
+if [ -f "$(pwd)/.gitconfig.oc" ]; then
+    GITCONFIG_MOUNT="-v $(pwd)/.gitconfig.oc:/home/user/.gitconfig:ro"
 fi
 
 
@@ -63,7 +68,7 @@ docker run -it --rm \
     -e AGENT_BROWSER_SOCKET_DIR=/home/user/.local/state/agent-browser \
     -e AGENT_BROWSER_HOME=/opt/agent-browser \
     -v "${HOME}/.gitconfig:/home/user/.gitconfig.host:ro" \
-    -v "$(pwd)/.gitconfig.oc:/home/user/.gitconfig:ro" \
+    ${GITCONFIG_MOUNT} \
     -v "${HOME}/.gnupg:/home/user/.gnupg" \
     -v "${HOME}/.ssh:/home/user/.ssh:ro" \
     -v "/var/run/docker.sock:/var/run/docker.sock" \
