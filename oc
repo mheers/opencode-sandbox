@@ -17,6 +17,7 @@ SSH_AUTH_ENV=""
 DOCKER_GID=""
 DOCKER_GROUP_ADD=""
 GITCONFIG_MOUNT=""
+GITCONFIG_PATH="/home/user/.gitconfig.host"
 
 if [ -S "${GPG_SOCKET_DIR}/S.gpg-agent" ]; then
     GPG_SOCKET_MOUNT="-v ${GPG_SOCKET_DIR}:${GPG_SOCKET_DIR} -v ${GPG_SOCKET_DIR}/S.gpg-agent:/home/user/.gnupg/S.gpg-agent"
@@ -35,6 +36,7 @@ fi
 
 if [ -f "$(pwd)/.gitconfig.oc" ]; then
     GITCONFIG_MOUNT="-v $(pwd)/.gitconfig.oc:/home/user/.gitconfig:ro"
+    GITCONFIG_PATH="/home/user/.gitconfig"
 fi
 
 
@@ -58,7 +60,7 @@ docker run -it --rm \
     --network host \
     --user "${USER_ID}:${GROUP_ID}" \
     -e HOME=/home/user \
-    -e PATH=/home/user/bin:/home/user/.local/bin:/home/user/go/bin:/usr/local/bin:/usr/bin:/bin \
+    -e PATH=/home/user/bin:/home/user/.local/bin:/home/user/go/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin \
     -v "$(pwd)":/home/user/project \
     -v "${HOME}/.opencode:/home/user/.opencode" \
     -v "${HOME}/.config/opencode:/home/user/.config/opencode" \
@@ -78,7 +80,7 @@ docker run -it --rm \
     -v "${HOME}/.cache/ms-playwright:/home/user/.cache/ms-playwright" \
     -w /home/user/project \
     ${DOCKER_GROUP_ADD} \
-    -e GIT_CONFIG_GLOBAL=/home/user/.gitconfig \
+    -e GIT_CONFIG_GLOBAL="${GITCONFIG_PATH}" \
     --entrypoint /usr/bin/zsh \
     ${GPG_TTY_ENV} \
     ${SSH_AUTH_ENV} \

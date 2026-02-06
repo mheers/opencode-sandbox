@@ -16,7 +16,6 @@ RUN apt-get update \
         fzf \
         git \
         gnupg \
-        golang \
         jq \
         less \
         libasound2t64 \
@@ -52,8 +51,6 @@ RUN apt-get update \
         libxrandr2 \
         libxrender1 \
         libxshmfence1 \
-        nodejs \
-        npm \
         openssh-client \
         pkg-config \
         postgresql-client \
@@ -68,11 +65,29 @@ RUN apt-get update \
         zip \
     && rm -rf /var/lib/apt/lists/*
 
+RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && npm install -g pnpm \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+        amd64) go_arch="amd64" ;; \
+        arm64) go_arch="arm64" ;; \
+        *) echo "Unsupported architecture: $arch"; exit 1 ;; \
+    esac; \
+    go_version="$(curl -fsSL https://go.dev/dl/?mode=json | jq -r '.[0].version')"; \
+    curl -fsSL "https://go.dev/dl/${go_version}.linux-${go_arch}.tar.gz" -o /tmp/go.tgz; \
+    rm -rf /usr/local/go; \
+    tar -C /usr/local -xzf /tmp/go.tgz; \
+    rm /tmp/go.tgz
+
 RUN curl -fsSL https://opencode.ai/install | bash \
     && ln -s /usr/bin/batcat /usr/local/bin/bat \
     && ln -s /usr/bin/fdfind /usr/local/bin/fd
 
-ENV PATH="/home/user/.opencode/bin:${PATH}"
+ENV PATH="/home/user/.opencode/bin:/usr/local/go/bin:${PATH}"
 
 RUN git clone --depth 1 https://github.com/vercel-labs/agent-browser /opt/agent-browser \
     && cd /opt/agent-browser \
@@ -80,7 +95,8 @@ RUN git clone --depth 1 https://github.com/vercel-labs/agent-browser /opt/agent-
     && npm run build \
     && npm install -g /opt/agent-browser
 
-RUN /usr/local/bin/agent-browser install
+RUN prefix="$(npm prefix -g)" \
+    && "${prefix}/bin/agent-browser" install
 
 RUN if id -u user >/dev/null 2>&1; then \
         true; \
