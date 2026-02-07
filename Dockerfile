@@ -139,6 +139,7 @@ export AGENT_BROWSER_HOME=/opt/agent-browser
 export AGENT_BROWSER_SOCKET_DIR=/home/user/.local/state/agent-browser
 mkdir -p "$AGENT_BROWSER_SOCKET_DIR" || true
 chmod 700 "$AGENT_BROWSER_SOCKET_DIR" || true
+alias ocx-init='ocx init || true; ocx registry add https://registry.kdco.dev --name kdco || true; ocx add kdco/workspace || true'
 export ZSH_DISABLE_COMPFIX=true
 export ZSH_CACHE_DIR=/tmp/zsh-cache
 export ZSH_COMPDUMP=$ZSH_CACHE_DIR/.zcompdump
@@ -154,6 +155,7 @@ RUN printf '%s\n' \
     'export AGENT_BROWSER_SOCKET_DIR=/home/user/.local/state/agent-browser' \
     'mkdir -p "$AGENT_BROWSER_SOCKET_DIR" || true' \
     'chmod 700 "$AGENT_BROWSER_SOCKET_DIR" || true' \
+    'alias ocx-init="ocx init || true; ocx registry add https://registry.kdco.dev --name kdco || true; ocx add kdco/workspace || true"' \
     >> /etc/bash.bashrc
 
 USER user

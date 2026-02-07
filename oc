@@ -6,6 +6,7 @@ IMAGE_NAME="mheers/opencode-sandbox:latest"
 # Generate unique container name based on current directory
 DIR_HASH=$(echo "$(pwd)" | md5sum | cut -c1-8)
 CONTAINER_NAME="opencode-${DIR_HASH}"
+LOCAL_VOLUME="opencode-local-${DIR_HASH}"
 USER_ID=$(id -u)
 GROUP_ID=$(id -g)
 RUNTIME_DIR="/run/user/${USER_ID}"
@@ -27,6 +28,13 @@ fi
 if [ -S "${SSH_AUTH_SOCK}" ]; then
     SSH_AUTH_MOUNT="-v ${SSH_AUTH_SOCK}:/ssh-agent"
     SSH_AUTH_ENV="-e SSH_AUTH_SOCK=/ssh-agent"
+fi
+
+if [ -z "${SSH_AUTH_SOCK}" ] && [ -S "${GPG_SOCKET_DIR}/S.gpg-agent.ssh" ]; then
+    if [ -z "${GPG_SOCKET_MOUNT}" ]; then
+        GPG_SOCKET_MOUNT="-v ${GPG_SOCKET_DIR}:${GPG_SOCKET_DIR}"
+    fi
+    SSH_AUTH_ENV="-e SSH_AUTH_SOCK=${GPG_SOCKET_DIR}/S.gpg-agent.ssh"
 fi
 
 if [ -S /var/run/docker.sock ]; then
@@ -64,6 +72,7 @@ docker run -it --rm \
     -v "$(pwd)":/home/user/project \
     -v "${HOME}/.opencode:/home/user/.opencode" \
     -v "${HOME}/.config/opencode:/home/user/.config/opencode" \
+    -v "${LOCAL_VOLUME}:/home/user/.local" \
     -v "${HOME}/.local/share/opencode:/home/user/.local/share/opencode" \
     --tmpfs /home/user/.local/state:uid="${USER_ID}",gid="${GROUP_ID}",mode=700 \
     -v "${HOME}/.local/state/opencode:/home/user/.local/state/opencode" \
