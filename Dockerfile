@@ -71,6 +71,21 @@ RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
     && rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \
+    mkdir -p /home/user; \
+    export HOME=/home/user; \
+    export BUN_INSTALL=/home/user/.bun; \
+    curl -fsSL https://bun.com/install | bash; \
+    [ -d /home/user/.bun ] && chown -R 1000:1000 /home/user/.bun
+
+RUN set -eux; \
+    mkdir -p /home/user; \
+    HOME=/home/user curl -fsSL https://ocx.kdco.dev/install.sh | sh; \
+    HOME=/home/user /usr/local/bin/ocx init --global; \
+    HOME=/home/user /usr/local/bin/ocx registry add https://ocx-kit.kdco.dev --name kit --global; \
+    HOME=/home/user /usr/local/bin/ocx profile add work --from kit/omo; \
+    chown -R 1000:1000 /home/user/.config /home/user/.ocx || true
+
+RUN set -eux; \
     arch="$(dpkg --print-architecture)"; \
     case "$arch" in \
         amd64) go_arch="amd64" ;; \
@@ -87,7 +102,7 @@ RUN curl -fsSL https://opencode.ai/install | bash \
     && ln -s /usr/bin/batcat /usr/local/bin/bat \
     && ln -s /usr/bin/fdfind /usr/local/bin/fd
 
-ENV PATH="/home/user/.opencode/bin:/usr/local/go/bin:${PATH}"
+ENV PATH="/home/user/.opencode/bin:/home/user/.bun/bin:/home/user/.ocx/bin:/usr/local/go/bin:${PATH}"
 
 RUN git clone --depth 1 https://github.com/vercel-labs/agent-browser /opt/agent-browser \
     && cd /opt/agent-browser \
@@ -117,7 +132,7 @@ RUN cat <<'EOF' > /etc/zsh/zshrc
 export ZSH=/opt/oh-my-zsh
 ZSH_THEME="bira"
 plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
-export PATH="/home/user/.opencode/bin:${PATH}"
+ export PATH="/home/user/.opencode/bin:/home/user/.bun/bin:/home/user/.ocx/bin:${PATH}"
 export GPG_TTY=$(tty)
 gpgconf --launch gpg-agent >/dev/null 2>&1
 export AGENT_BROWSER_HOME=/opt/agent-browser
@@ -132,7 +147,7 @@ source $ZSH/oh-my-zsh.sh
 EOF
 
 RUN printf '%s\n' \
-    'export PATH="/home/user/.opencode/bin:${PATH}"' \
+    'export PATH="/home/user/.opencode/bin:/home/user/.bun/bin:/home/user/.ocx/bin:${PATH}"' \
     'export GPG_TTY=$(tty)' \
     'gpgconf --launch gpg-agent >/dev/null 2>&1' \
     'export AGENT_BROWSER_HOME=/opt/agent-browser' \
