@@ -10,12 +10,15 @@ RUN apt-get update \
         ca-certificates \
         coreutils \
         curl \
+        dnsutils \
         docker-compose \
         docker.io \
         fd-find \
         fzf \
         git \
         gnupg \
+        iproute2 \
+        iputils-ping \
         jq \
         less \
         libasound2t64 \
@@ -51,13 +54,18 @@ RUN apt-get update \
         libxrandr2 \
         libxrender1 \
         libxshmfence1 \
+        mtr-tiny \
+        net-tools \
+        nmap \
         openssh-client \
         pkg-config \
         postgresql-client \
         procps \
         ripgrep \
         tar \
+        tcpdump \
         tig \
+        traceroute \
         unzip \
         wget \
         xz-utils \
@@ -121,6 +129,8 @@ RUN if id -u user >/dev/null 2>&1; then \
         useradd -m -u 1000 user; \
     fi \
     && usermod -s /usr/bin/zsh user \
+    && mkdir -p /home/user/go \
+    && chown -R 1000:1000 /home/user \
     && chmod 755 /home/user
 
 RUN git clone --depth 1 https://github.com/ohmyzsh/ohmyzsh /opt/oh-my-zsh \
@@ -146,6 +156,11 @@ export ZSH_COMPDUMP=$ZSH_CACHE_DIR/.zcompdump
 mkdir -p "$ZSH_CACHE_DIR"
 source $ZSH/oh-my-zsh.sh
 EOF
+
+RUN printf '%s\n' \
+    'source /etc/zsh/zshrc' \
+    > /home/user/.zshrc \
+    && chown 1000:1000 /home/user/.zshrc
 
 RUN printf '%s\n' \
     'export PATH="/home/user/.opencode/bin:/home/user/.bun/bin:/home/user/.ocx/bin:${PATH}"' \
