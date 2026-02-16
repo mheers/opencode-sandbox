@@ -1,6 +1,47 @@
 #!/bin/bash
 # OpenCode Docker wrapper - run from any directory
 # Symlink this to ~/bin/oc or add to PATH
+#
+# Flags:
+#   -t, --tmux    Run inside a tmux session named after the current directory
+
+USE_TMUX=false
+
+# Parse flags
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -t|--tmux)
+            USE_TMUX=true
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+# If --tmux requested and we're not already inside the target session,
+# re-exec this script (without -t) inside a new/existing tmux session.
+if [ "${USE_TMUX}" = true ]; then
+    TMUX_SESSION=$(basename "$(pwd)" | tr '.' '_')
+    SELF="$(readlink -f "$0")"
+
+    if [ -n "${TMUX}" ]; then
+        # Already inside tmux — check if it's the right session
+        CURRENT_SESSION=$(tmux display-message -p '#S')
+        if [ "${CURRENT_SESSION}" = "${TMUX_SESSION}" ]; then
+            # Already in the target session, just run oc normally
+            exec "${SELF}" "$@"
+        fi
+    fi
+
+    # Launch or attach to the tmux session, running oc inside it
+    exec tmux new-session -A -s "${TMUX_SESSION}" "${SELF}" "$@"
+fi
 
 IMAGE_NAME="mheers/opencode-sandbox:latest"
 # Generate unique container name based on current directory
