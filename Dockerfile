@@ -4,73 +4,73 @@ USER root
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        bat \
-        bash \
-        build-essential \
-        ca-certificates \
-        coreutils \
-        curl \
-        dnsutils \
-        docker-compose \
-        docker.io \
-        fd-find \
-        fzf \
-        git \
-        gnupg \
-        iproute2 \
-        iputils-ping \
-        jq \
-        less \
-        libasound2t64 \
-        libatk-bridge2.0-0 \
-        libatk1.0-0 \
-        libatspi2.0-0 \
-        libcairo-gobject2 \
-        libcairo2 \
-        libcups2 \
-        libdbus-1-3 \
-        libdrm2 \
-        libfontconfig1 \
-        libfreetype6 \
-        libgbm1 \
-        libgdk-pixbuf-2.0-0 \
-        libglib2.0-0 \
-        libgtk-3-0 \
-        libnspr4 \
-        libnss3 \
-        libpango-1.0-0 \
-        libpangocairo-1.0-0 \
-        libx11-6 \
-        libx11-xcb1 \
-        libxcb-shm0 \
-        libxcb1 \
-        libxcomposite1 \
-        libxcursor1 \
-        libxdamage1 \
-        libxext6 \
-        libxfixes3 \
-        libxi6 \
-        libxkbcommon0 \
-        libxrandr2 \
-        libxrender1 \
-        libxshmfence1 \
-        mtr-tiny \
-        net-tools \
-        nmap \
-        openssh-client \
-        pkg-config \
-        postgresql-client \
-        procps \
-        ripgrep \
-        tar \
-        tcpdump \
-        tig \
-        traceroute \
-        unzip \
-        wget \
-        xz-utils \
-        zsh \
-        zip \
+    bat \
+    bash \
+    build-essential \
+    ca-certificates \
+    coreutils \
+    curl \
+    dnsutils \
+    docker-compose \
+    docker.io \
+    fd-find \
+    fzf \
+    git \
+    gnupg \
+    iproute2 \
+    iputils-ping \
+    jq \
+    less \
+    libasound2t64 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libatspi2.0-0 \
+    libcairo-gobject2 \
+    libcairo2 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libfontconfig1 \
+    libfreetype6 \
+    libgbm1 \
+    libgdk-pixbuf-2.0-0 \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxcb-shm0 \
+    libxcb1 \
+    libxcomposite1 \
+    libxcursor1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxi6 \
+    libxkbcommon0 \
+    libxrandr2 \
+    libxrender1 \
+    libxshmfence1 \
+    mtr-tiny \
+    net-tools \
+    nmap \
+    openssh-client \
+    pkg-config \
+    postgresql-client \
+    procps \
+    ripgrep \
+    tar \
+    tcpdump \
+    tig \
+    traceroute \
+    unzip \
+    wget \
+    xz-utils \
+    zsh \
+    zip \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
@@ -96,9 +96,9 @@ RUN set -eux; \
 RUN set -eux; \
     arch="$(dpkg --print-architecture)"; \
     case "$arch" in \
-        amd64) go_arch="amd64" ;; \
-        arm64) go_arch="arm64" ;; \
-        *) echo "Unsupported architecture: $arch"; exit 1 ;; \
+    amd64) go_arch="amd64" ;; \
+    arm64) go_arch="arm64" ;; \
+    *) echo "Unsupported architecture: $arch"; exit 1 ;; \
     esac; \
     go_version="$(curl -fsSL https://go.dev/dl/?mode=json | jq -r '.[0].version')"; \
     curl -fsSL "https://go.dev/dl/${go_version}.linux-${go_arch}.tar.gz" -o /tmp/go.tgz; \
@@ -109,6 +109,11 @@ RUN set -eux; \
 RUN curl -fsSL https://opencode.ai/install | bash \
     && ln -s /usr/bin/batcat /usr/local/bin/bat \
     && ln -s /usr/bin/fdfind /usr/local/bin/fd
+
+RUN set -eux; \
+    mkdir -p /home/user; \
+    HOME=/home/user bash -lc "printf 'y\n2\n1\n' | npx -y get-shit-done-cc@latest"; \
+    chown -R 1000:1000 /home/user/.config /home/user/.local/share /home/user/.local/state || true
 
 ENV PATH="/home/user/.opencode/bin:/home/user/.bun/bin:/home/user/.ocx/bin:/usr/local/go/bin:${PATH}"
 
@@ -122,11 +127,11 @@ RUN prefix="$(npm prefix -g)" \
     && "${prefix}/bin/agent-browser" install
 
 RUN if id -u user >/dev/null 2>&1; then \
-        true; \
+    true; \
     elif getent passwd 1000 >/dev/null 2>&1; then \
-        useradd -m user; \
+    useradd -m user; \
     else \
-        useradd -m -u 1000 user; \
+    useradd -m -u 1000 user; \
     fi \
     && usermod -s /usr/bin/zsh user \
     && mkdir -p /home/user/go \

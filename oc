@@ -17,6 +17,9 @@ SSH_AUTH_MOUNT=""
 SSH_AUTH_ENV=""
 DOCKER_GID=""
 DOCKER_GROUP_ADD=""
+KVM_GID=""
+KVM_GROUP_ADD=""
+KVM_DEVICE=""
 GITCONFIG_MOUNT=""
 GITCONFIG_PATH="/home/user/.gitconfig.host"
 
@@ -40,6 +43,12 @@ fi
 if [ -S /var/run/docker.sock ]; then
     DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
     DOCKER_GROUP_ADD="--group-add ${DOCKER_GID}"
+fi
+
+if [ -e /dev/kvm ]; then
+    KVM_GID=$(stat -c '%g' /dev/kvm)
+    KVM_GROUP_ADD="--group-add ${KVM_GID}"
+    KVM_DEVICE="--device /dev/kvm"
 fi
 
 if [ -f "$(pwd)/.gitconfig.oc" ]; then
@@ -89,6 +98,8 @@ docker run -it --rm \
     -v "${HOME}/.cache/ms-playwright:/home/user/.cache/ms-playwright" \
     -w /home/user/project \
     ${DOCKER_GROUP_ADD} \
+    ${KVM_GROUP_ADD} \
+    ${KVM_DEVICE} \
     -e GIT_CONFIG_GLOBAL="${GITCONFIG_PATH}" \
     --entrypoint /usr/bin/zsh \
     ${GPG_TTY_ENV} \
