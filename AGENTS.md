@@ -30,5 +30,17 @@ ocx Setup (in image)
 Default Shell
 - `/usr/bin/zsh` with oh-my-zsh and plugins.
 
+Agent Tools
+- `showboat` — create executable demo documents that prove an agent's work. Installed via `go install`.
+- `agent-browser` — browser automation CLI for AI agents. Installed via npm from vercel-labs/agent-browser.
+
+OpenCode Skills (global, baked into the image)
+- Skills are installed to `/home/user/.config/opencode/skills/`.
+- `showboat` — guides the agent to create a `demo.md` showing the feature it just built.
+- `agent-browser` — guides the agent to start and interact with a real web browser.
+- Source files live in `skills/` in this repo and are COPYed into the image.
+
 Validation
 - In a running container: `command -v bun` and `command -v ocx` should succeed.
+- `command -v showboat` and `command -v agent-browser` should succeed.
+- `ls /home/user/.config/opencode/skills/showboat/SKILL.md` and `ls /home/user/.config/opencode/skills/agent-browser/SKILL.md` should succeed.

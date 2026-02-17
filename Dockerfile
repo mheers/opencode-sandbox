@@ -110,6 +110,8 @@ RUN curl -fsSL https://opencode.ai/install | bash \
     && ln -s /usr/bin/batcat /usr/local/bin/bat \
     && ln -s /usr/bin/fdfind /usr/local/bin/fd
 
+RUN GOBIN=/usr/local/bin /usr/local/go/bin/go install github.com/simonw/showboat@latest
+
 RUN set -eux; \
     mkdir -p /home/user; \
     HOME=/home/user bash -lc "printf 'y\n2\n1\n' | npx -y get-shit-done-cc@latest"; \
@@ -177,5 +179,9 @@ RUN printf '%s\n' \
     'chmod 700 "$AGENT_BROWSER_SOCKET_DIR" || true' \
     'alias ocx-init="ocx init || true; ocx registry add https://registry.kdco.dev --name kdco || true; ocx add kdco/workspace || true"' \
     >> /etc/bash.bashrc
+
+COPY skills/showboat/SKILL.md /home/user/.config/opencode/skills/showboat/SKILL.md
+COPY skills/agent-browser/SKILL.md /home/user/.config/opencode/skills/agent-browser/SKILL.md
+RUN chown -R 1000:1000 /home/user/.config/opencode
 
 USER user
