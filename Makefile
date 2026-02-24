@@ -3,7 +3,7 @@ TAG ?= latest
 
 .PHONY: build
 build:
-	docker build -t $(IMAGE_NAME):$(TAG) .
+	docker build -t $(IMAGE_NAME):$(TAG) . --no-cache
 
 .PHONY: publish
 publish:
