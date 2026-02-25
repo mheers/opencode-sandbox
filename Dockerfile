@@ -86,14 +86,6 @@ RUN set -eux; \
     [ -d /home/user/.bun ] && chown -R 1000:1000 /home/user/.bun
 
 RUN set -eux; \
-    mkdir -p /home/user; \
-    HOME=/home/user curl -fsSL https://ocx.kdco.dev/install.sh | sh; \
-    HOME=/home/user /usr/local/bin/ocx init --global; \
-    HOME=/home/user /usr/local/bin/ocx registry add https://ocx-kit.kdco.dev --name kit --global; \
-    HOME=/home/user /usr/local/bin/ocx profile add work --from kit/omo; \
-    chown -R 1000:1000 /home/user/.config /home/user/.ocx || true
-
-RUN set -eux; \
     arch="$(dpkg --print-architecture)"; \
     case "$arch" in \
     amd64) go_arch="amd64" ;; \
@@ -111,19 +103,16 @@ RUN curl -fsSL https://opencode.ai/install | bash \
     && ln -s /usr/bin/fdfind /usr/local/bin/fd
 
 RUN GOBIN=/usr/local/bin /usr/local/go/bin/go install github.com/simonw/showboat@latest
+RUN GOBIN=/usr/local/bin /usr/local/go/bin/go install github.com/entireio/cli/cmd/entire@latest
 
 RUN set -eux; \
     mkdir -p /home/user; \
     HOME=/home/user bash -lc "printf 'y\n2\n1\n' | npx -y get-shit-done-cc@latest"; \
     chown -R 1000:1000 /home/user/.config /home/user/.local/share /home/user/.local/state || true
 
-ENV PATH="/home/user/.opencode/bin:/home/user/.bun/bin:/home/user/.ocx/bin:/usr/local/go/bin:${PATH}"
+ENV PATH="/home/user/.opencode/bin:/home/user/.bun/bin:/usr/local/go/bin:${PATH}"
 
-RUN git clone --depth 1 https://github.com/vercel-labs/agent-browser /opt/agent-browser \
-    && cd /opt/agent-browser \
-    && npm install \
-    && npm run build \
-    && npm install -g /opt/agent-browser
+RUN npm install -g agent-browser
 
 RUN prefix="$(npm prefix -g)" \
     && "${prefix}/bin/agent-browser" install
@@ -149,14 +138,13 @@ RUN cat <<'EOF' > /etc/zsh/zshrc
 export ZSH=/opt/oh-my-zsh
 ZSH_THEME="bira"
 plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
- export PATH="/home/user/.opencode/bin:/home/user/.bun/bin:/home/user/.ocx/bin:${PATH}"
+export PATH="/home/user/.opencode/bin:/home/user/.bun/bin:${PATH}"
 export GPG_TTY=$(tty)
 gpgconf --launch gpg-agent >/dev/null 2>&1
 export AGENT_BROWSER_HOME=/opt/agent-browser
 export AGENT_BROWSER_SOCKET_DIR=/home/user/.local/state/agent-browser
 mkdir -p "$AGENT_BROWSER_SOCKET_DIR" || true
 chmod 700 "$AGENT_BROWSER_SOCKET_DIR" || true
-alias ocx-init='ocx init || true; ocx registry add https://registry.kdco.dev --name kdco || true; ocx add kdco/workspace || true'
 export ZSH_DISABLE_COMPFIX=true
 export ZSH_CACHE_DIR=/tmp/zsh-cache
 export ZSH_COMPDUMP=$ZSH_CACHE_DIR/.zcompdump
@@ -170,14 +158,13 @@ RUN printf '%s\n' \
     && chown 1000:1000 /home/user/.zshrc
 
 RUN printf '%s\n' \
-    'export PATH="/home/user/.opencode/bin:/home/user/.bun/bin:/home/user/.ocx/bin:${PATH}"' \
+    'export PATH="/home/user/.opencode/bin:/home/user/.bun/bin:${PATH}"' \
     'export GPG_TTY=$(tty)' \
     'gpgconf --launch gpg-agent >/dev/null 2>&1' \
     'export AGENT_BROWSER_HOME=/opt/agent-browser' \
     'export AGENT_BROWSER_SOCKET_DIR=/home/user/.local/state/agent-browser' \
     'mkdir -p "$AGENT_BROWSER_SOCKET_DIR" || true' \
     'chmod 700 "$AGENT_BROWSER_SOCKET_DIR" || true' \
-    'alias ocx-init="ocx init || true; ocx registry add https://registry.kdco.dev --name kdco || true; ocx add kdco/workspace || true"' \
     >> /etc/bash.bashrc
 
 COPY skills/showboat/SKILL.md /home/user/.config/opencode/skills/showboat/SKILL.md
