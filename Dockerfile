@@ -2,6 +2,17 @@ FROM ubuntu:24.04
 
 USER root
 ENV DEBIAN_FRONTEND=noninteractive
+
+# Add Docker's official apt repository for docker-ce-cli and docker-compose-plugin
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
+    && install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
+    && chmod a+r /etc/apt/keyrings/docker.asc \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+       > /etc/apt/sources.list.d/docker.list \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
     bat \
@@ -11,8 +22,8 @@ RUN apt-get update \
     coreutils \
     curl \
     dnsutils \
-    docker-compose \
-    docker.io \
+    docker-ce-cli \
+    docker-compose-plugin \
     fd-find \
     fzf \
     git \
