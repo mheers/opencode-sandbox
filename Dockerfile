@@ -10,7 +10,7 @@ RUN apt-get update \
     && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
     && chmod a+r /etc/apt/keyrings/docker.asc \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
-       > /etc/apt/sources.list.d/docker.list \
+    > /etc/apt/sources.list.d/docker.list \
     && rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update \
@@ -180,6 +180,18 @@ RUN printf '%s\n' \
 
 COPY skills/showboat/SKILL.md /home/user/.config/opencode/skills/showboat/SKILL.md
 COPY skills/agent-browser/SKILL.md /home/user/.config/opencode/skills/agent-browser/SKILL.md
+COPY skills/effective-go/SKILL.md /home/user/.config/opencode/skills/effective-go/SKILL.md
+COPY skills/vue/SKILL.md /home/user/.config/opencode/skills/vue/SKILL.md
+COPY skills/nuxt/SKILL.md /home/user/.config/opencode/skills/nuxt/SKILL.md
+COPY skills/pinia/SKILL.md /home/user/.config/opencode/skills/pinia/SKILL.md
+COPY skills/vite/SKILL.md /home/user/.config/opencode/skills/vite/SKILL.md
+COPY skills/vitepress/SKILL.md /home/user/.config/opencode/skills/vitepress/SKILL.md
+COPY skills/vitest/SKILL.md /home/user/.config/opencode/skills/vitest/SKILL.md
+COPY skills/unocss/SKILL.md /home/user/.config/opencode/skills/unocss/SKILL.md
+COPY skills/vue-best-practices/SKILL.md /home/user/.config/opencode/skills/vue-best-practices/SKILL.md
+COPY skills/vue-router-best-practices/SKILL.md /home/user/.config/opencode/skills/vue-router-best-practices/SKILL.md
+COPY skills/vue-testing-best-practices/SKILL.md /home/user/.config/opencode/skills/vue-testing-best-practices/SKILL.md
+COPY skills/vueuse-functions/SKILL.md /home/user/.config/opencode/skills/vueuse-functions/SKILL.md
 RUN chown -R 1000:1000 /home/user/.config/opencode
 
 USER user
