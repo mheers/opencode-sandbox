@@ -1,0 +1,7 @@
+install "docker compose" in the Dockerimage. right now it gives ╰─$ docker compose
+docker: unknown command: docker compose
+
+---
+
+10.02 E: Unable to locate package docker-compose-plugin
+run "make" yourself until it works
