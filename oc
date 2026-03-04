@@ -137,6 +137,8 @@ docker run -it --rm \
     ${SSH_AUTH_MOUNT} \
     --tmpfs /home/user/.cache:uid="${USER_ID}",gid="${GROUP_ID}",mode=700 \
     -v "${HOME}/.cache/ms-playwright:/home/user/.cache/ms-playwright" \
+    -v "${HOME}/.cache/opencode:/home/user/.cache/opencode" \
+    -v "${HOME}/.bun/install/cache:/home/user/.bun/install/cache" \
     -w /home/user/project \
     ${DOCKER_GROUP_ADD} \
     ${KVM_GROUP_ADD} \
