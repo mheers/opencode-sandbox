@@ -65,6 +65,8 @@ GITCONFIG_MOUNT=""
 GITCONFIG_PATH="/home/user/.gitconfig.host"
 DBUS_MOUNT=""
 DBUS_ENV=""
+PIPEWIRE_MOUNT=""
+PIPEWIRE_ENV=""
 
 if [ -S "${GPG_SOCKET_DIR}/S.gpg-agent" ]; then
     GPG_SOCKET_MOUNT="-v ${GPG_SOCKET_DIR}:${GPG_SOCKET_DIR} -v ${GPG_SOCKET_DIR}/S.gpg-agent:/home/user/.gnupg/S.gpg-agent"
@@ -106,6 +108,13 @@ if [ -n "${DBUS_SESSION_BUS_ADDRESS}" ]; then
         DBUS_MOUNT="-v ${DBUS_SOCKET}:${DBUS_SOCKET}"
         DBUS_ENV="-e DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS}"
     fi
+fi
+
+# Forward host PipeWire socket so paplay (via pipewire-pulse) can play sounds inside the container
+PIPEWIRE_SOCKET="${RUNTIME_DIR}/pipewire-0"
+if [ -S "${PIPEWIRE_SOCKET}" ]; then
+    PIPEWIRE_MOUNT="-v ${PIPEWIRE_SOCKET}:${PIPEWIRE_SOCKET}"
+    PIPEWIRE_ENV="-e PULSE_SERVER=unix:${PIPEWIRE_SOCKET}"
 fi
 
 
@@ -160,4 +169,6 @@ docker run -it --rm \
     ${SSH_AUTH_ENV} \
     ${DBUS_MOUNT} \
     ${DBUS_ENV} \
+    ${PIPEWIRE_MOUNT} \
+    ${PIPEWIRE_ENV} \
     "${IMAGE_NAME}" -i "$@"

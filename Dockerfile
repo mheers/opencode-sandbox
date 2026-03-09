@@ -34,6 +34,7 @@ RUN apt-get update \
     less \
     libnotify-bin \
     libasound2t64 \
+    pulseaudio-utils \
     libatk-bridge2.0-0 \
     libatk1.0-0 \
     libatspi2.0-0 \
