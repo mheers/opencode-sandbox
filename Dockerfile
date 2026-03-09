@@ -181,38 +181,43 @@ RUN printf '%s\n' \
     'chmod 700 "$AGENT_BROWSER_SOCKET_DIR" || true' \
     >> /etc/bash.bashrc
 
-COPY skills/showboat/SKILL.md /home/user/.config/opencode/skills/showboat/SKILL.md
-COPY skills/agent-browser/SKILL.md /home/user/.config/opencode/skills/agent-browser/SKILL.md
-COPY skills/effective-go/SKILL.md /home/user/.config/opencode/skills/effective-go/SKILL.md
-COPY skills/vue/SKILL.md /home/user/.config/opencode/skills/vue/SKILL.md
-COPY skills/nuxt/SKILL.md /home/user/.config/opencode/skills/nuxt/SKILL.md
-COPY skills/pinia/SKILL.md /home/user/.config/opencode/skills/pinia/SKILL.md
-COPY skills/vite/SKILL.md /home/user/.config/opencode/skills/vite/SKILL.md
-COPY skills/vitepress/SKILL.md /home/user/.config/opencode/skills/vitepress/SKILL.md
-COPY skills/vitest/SKILL.md /home/user/.config/opencode/skills/vitest/SKILL.md
-COPY skills/unocss/SKILL.md /home/user/.config/opencode/skills/unocss/SKILL.md
-COPY skills/vue-best-practices/SKILL.md /home/user/.config/opencode/skills/vue-best-practices/SKILL.md
-COPY skills/vue-router-best-practices/SKILL.md /home/user/.config/opencode/skills/vue-router-best-practices/SKILL.md
-COPY skills/vue-testing-best-practices/SKILL.md /home/user/.config/opencode/skills/vue-testing-best-practices/SKILL.md
-COPY skills/vueuse-functions/SKILL.md /home/user/.config/opencode/skills/vueuse-functions/SKILL.md
-COPY skills/adapt/SKILL.md /home/user/.config/opencode/skills/adapt/SKILL.md
-COPY skills/animate/SKILL.md /home/user/.config/opencode/skills/animate/SKILL.md
-COPY skills/audit/SKILL.md /home/user/.config/opencode/skills/audit/SKILL.md
-COPY skills/bolder/SKILL.md /home/user/.config/opencode/skills/bolder/SKILL.md
-COPY skills/clarify/SKILL.md /home/user/.config/opencode/skills/clarify/SKILL.md
-COPY skills/colorize/SKILL.md /home/user/.config/opencode/skills/colorize/SKILL.md
-COPY skills/critique/SKILL.md /home/user/.config/opencode/skills/critique/SKILL.md
-COPY skills/delight/SKILL.md /home/user/.config/opencode/skills/delight/SKILL.md
-COPY skills/distill/SKILL.md /home/user/.config/opencode/skills/distill/SKILL.md
-COPY skills/extract/SKILL.md /home/user/.config/opencode/skills/extract/SKILL.md
-COPY skills/frontend-design/SKILL.md /home/user/.config/opencode/skills/frontend-design/SKILL.md
-COPY skills/harden/SKILL.md /home/user/.config/opencode/skills/harden/SKILL.md
-COPY skills/normalize/SKILL.md /home/user/.config/opencode/skills/normalize/SKILL.md
-COPY skills/onboard/SKILL.md /home/user/.config/opencode/skills/onboard/SKILL.md
-COPY skills/optimize/SKILL.md /home/user/.config/opencode/skills/optimize/SKILL.md
-COPY skills/polish/SKILL.md /home/user/.config/opencode/skills/polish/SKILL.md
-COPY skills/quieter/SKILL.md /home/user/.config/opencode/skills/quieter/SKILL.md
-COPY skills/teach-impeccable/SKILL.md /home/user/.config/opencode/skills/teach-impeccable/SKILL.md
-RUN chown -R 1000:1000 /home/user/.config/opencode
+COPY skills/showboat/SKILL.md /opt/opencode/skills/showboat/SKILL.md
+COPY skills/agent-browser/SKILL.md /opt/opencode/skills/agent-browser/SKILL.md
+COPY skills/effective-go/SKILL.md /opt/opencode/skills/effective-go/SKILL.md
+COPY skills/vue/SKILL.md /opt/opencode/skills/vue/SKILL.md
+COPY skills/nuxt/SKILL.md /opt/opencode/skills/nuxt/SKILL.md
+COPY skills/pinia/SKILL.md /opt/opencode/skills/pinia/SKILL.md
+COPY skills/vite/SKILL.md /opt/opencode/skills/vite/SKILL.md
+COPY skills/vitepress/SKILL.md /opt/opencode/skills/vitepress/SKILL.md
+COPY skills/vitest/SKILL.md /opt/opencode/skills/vitest/SKILL.md
+COPY skills/unocss/SKILL.md /opt/opencode/skills/unocss/SKILL.md
+COPY skills/vue-best-practices/SKILL.md /opt/opencode/skills/vue-best-practices/SKILL.md
+COPY skills/vue-router-best-practices/SKILL.md /opt/opencode/skills/vue-router-best-practices/SKILL.md
+COPY skills/vue-testing-best-practices/SKILL.md /opt/opencode/skills/vue-testing-best-practices/SKILL.md
+COPY skills/vueuse-functions/SKILL.md /opt/opencode/skills/vueuse-functions/SKILL.md
+COPY skills/adapt/SKILL.md /opt/opencode/skills/adapt/SKILL.md
+COPY skills/animate/SKILL.md /opt/opencode/skills/animate/SKILL.md
+COPY skills/audit/SKILL.md /opt/opencode/skills/audit/SKILL.md
+COPY skills/bolder/SKILL.md /opt/opencode/skills/bolder/SKILL.md
+COPY skills/clarify/SKILL.md /opt/opencode/skills/clarify/SKILL.md
+COPY skills/colorize/SKILL.md /opt/opencode/skills/colorize/SKILL.md
+COPY skills/critique/SKILL.md /opt/opencode/skills/critique/SKILL.md
+COPY skills/delight/SKILL.md /opt/opencode/skills/delight/SKILL.md
+COPY skills/distill/SKILL.md /opt/opencode/skills/distill/SKILL.md
+COPY skills/extract/SKILL.md /opt/opencode/skills/extract/SKILL.md
+COPY skills/frontend-design/SKILL.md /opt/opencode/skills/frontend-design/SKILL.md
+COPY skills/harden/SKILL.md /opt/opencode/skills/harden/SKILL.md
+COPY skills/normalize/SKILL.md /opt/opencode/skills/normalize/SKILL.md
+COPY skills/onboard/SKILL.md /opt/opencode/skills/onboard/SKILL.md
+COPY skills/optimize/SKILL.md /opt/opencode/skills/optimize/SKILL.md
+COPY skills/polish/SKILL.md /opt/opencode/skills/polish/SKILL.md
+COPY skills/quieter/SKILL.md /opt/opencode/skills/quieter/SKILL.md
+COPY skills/teach-impeccable/SKILL.md /opt/opencode/skills/teach-impeccable/SKILL.md
+
+# Entrypoint script: merges /opt/opencode/skills into ~/.config/opencode/skills at startup
+# Host-installed skills take precedence (cp -n = no-clobber)
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh \
+    && chmod -R a+rX /opt/opencode/skills
 
 USER user

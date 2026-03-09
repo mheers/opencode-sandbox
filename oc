@@ -171,11 +171,11 @@ docker run -it --rm \
     ${KVM_GROUP_ADD} \
     ${KVM_DEVICE} \
     -e GIT_CONFIG_GLOBAL="${GITCONFIG_PATH}" \
-    --entrypoint /usr/bin/zsh \
+    --entrypoint /usr/local/bin/entrypoint.sh \
     ${GPG_TTY_ENV} \
     ${SSH_AUTH_ENV} \
     ${DBUS_MOUNT} \
     ${DBUS_ENV} \
     ${PIPEWIRE_MOUNT} \
     ${PIPEWIRE_ENV} \
-    "${IMAGE_NAME}" -i "$@"
+    "${IMAGE_NAME}" /usr/bin/zsh -i "$@"
