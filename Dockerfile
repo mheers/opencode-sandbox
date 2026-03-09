@@ -192,6 +192,24 @@ COPY skills/vue-best-practices/SKILL.md /home/user/.config/opencode/skills/vue-b
 COPY skills/vue-router-best-practices/SKILL.md /home/user/.config/opencode/skills/vue-router-best-practices/SKILL.md
 COPY skills/vue-testing-best-practices/SKILL.md /home/user/.config/opencode/skills/vue-testing-best-practices/SKILL.md
 COPY skills/vueuse-functions/SKILL.md /home/user/.config/opencode/skills/vueuse-functions/SKILL.md
+COPY skills/adapt/SKILL.md /home/user/.config/opencode/skills/adapt/SKILL.md
+COPY skills/animate/SKILL.md /home/user/.config/opencode/skills/animate/SKILL.md
+COPY skills/audit/SKILL.md /home/user/.config/opencode/skills/audit/SKILL.md
+COPY skills/bolder/SKILL.md /home/user/.config/opencode/skills/bolder/SKILL.md
+COPY skills/clarify/SKILL.md /home/user/.config/opencode/skills/clarify/SKILL.md
+COPY skills/colorize/SKILL.md /home/user/.config/opencode/skills/colorize/SKILL.md
+COPY skills/critique/SKILL.md /home/user/.config/opencode/skills/critique/SKILL.md
+COPY skills/delight/SKILL.md /home/user/.config/opencode/skills/delight/SKILL.md
+COPY skills/distill/SKILL.md /home/user/.config/opencode/skills/distill/SKILL.md
+COPY skills/extract/SKILL.md /home/user/.config/opencode/skills/extract/SKILL.md
+COPY skills/frontend-design/SKILL.md /home/user/.config/opencode/skills/frontend-design/SKILL.md
+COPY skills/harden/SKILL.md /home/user/.config/opencode/skills/harden/SKILL.md
+COPY skills/normalize/SKILL.md /home/user/.config/opencode/skills/normalize/SKILL.md
+COPY skills/onboard/SKILL.md /home/user/.config/opencode/skills/onboard/SKILL.md
+COPY skills/optimize/SKILL.md /home/user/.config/opencode/skills/optimize/SKILL.md
+COPY skills/polish/SKILL.md /home/user/.config/opencode/skills/polish/SKILL.md
+COPY skills/quieter/SKILL.md /home/user/.config/opencode/skills/quieter/SKILL.md
+COPY skills/teach-impeccable/SKILL.md /home/user/.config/opencode/skills/teach-impeccable/SKILL.md
 RUN chown -R 1000:1000 /home/user/.config/opencode
 
 USER user

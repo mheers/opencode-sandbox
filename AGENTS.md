@@ -38,6 +38,7 @@ OpenCode Skills (global, baked into the image)
 - Skills are installed to `/home/user/.config/opencode/skills/`.
 - `showboat` — guides the agent to create a `demo.md` showing the feature it just built.
 - `agent-browser` — guides the agent to start and interact with a real web browser.
+- `pbakaus/impeccable` skills (18 total): adapt, animate, audit, bolder, clarify, colorize, critique, delight, distill, extract, frontend-design, harden, normalize, onboard, optimize, polish, quieter, teach-impeccable.
 - Source files live in `skills/` in this repo and are COPYed into the image.
 
 Validation
