@@ -146,23 +146,23 @@ RUN git clone --depth 1 https://github.com/ohmyzsh/ohmyzsh /opt/oh-my-zsh \
     && git clone --depth 1 https://github.com/zsh-users/zsh-syntax-highlighting /opt/oh-my-zsh/custom/plugins/zsh-syntax-highlighting \
     && chmod -R o+rX /opt/oh-my-zsh
 
-RUN cat <<'EOF' > /etc/zsh/zshrc
-export ZSH=/opt/oh-my-zsh
-ZSH_THEME="bira"
-plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
-export PATH="/home/user/.opencode/bin:/home/user/.bun/bin:${PATH}"
-export GPG_TTY=$(tty)
-gpgconf --launch gpg-agent >/dev/null 2>&1
-export AGENT_BROWSER_HOME=/opt/agent-browser
-export AGENT_BROWSER_SOCKET_DIR=/home/user/.local/state/agent-browser
-mkdir -p "$AGENT_BROWSER_SOCKET_DIR" || true
-chmod 700 "$AGENT_BROWSER_SOCKET_DIR" || true
-export ZSH_DISABLE_COMPFIX=true
-export ZSH_CACHE_DIR=/tmp/zsh-cache
-export ZSH_COMPDUMP=$ZSH_CACHE_DIR/.zcompdump
-mkdir -p "$ZSH_CACHE_DIR"
-source $ZSH/oh-my-zsh.sh
-EOF
+RUN printf '%s\n' \
+    'export ZSH=/opt/oh-my-zsh' \
+    'ZSH_THEME="bira"' \
+    'plugins=(git zsh-autosuggestions zsh-syntax-highlighting)' \
+    'export PATH="/home/user/.opencode/bin:/home/user/.bun/bin:${PATH}"' \
+    'export GPG_TTY=$(tty)' \
+    'gpgconf --launch gpg-agent >/dev/null 2>&1' \
+    'export AGENT_BROWSER_HOME=/opt/agent-browser' \
+    'export AGENT_BROWSER_SOCKET_DIR=/home/user/.local/state/agent-browser' \
+    'mkdir -p "$AGENT_BROWSER_SOCKET_DIR" || true' \
+    'chmod 700 "$AGENT_BROWSER_SOCKET_DIR" || true' \
+    'export ZSH_DISABLE_COMPFIX=true' \
+    'export ZSH_CACHE_DIR=/tmp/zsh-cache' \
+    'export ZSH_COMPDUMP=$ZSH_CACHE_DIR/.zcompdump' \
+    'mkdir -p "$ZSH_CACHE_DIR"' \
+    'source $ZSH/oh-my-zsh.sh' \
+    > /etc/zsh/zshrc
 
 RUN printf '%s\n' \
     'source /etc/zsh/zshrc' \
