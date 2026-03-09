@@ -220,4 +220,33 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh \
     && chmod -R a+rX /opt/opencode/skills
 
+# notify-send wrapper: injects --app-name="OpenCode" so KDE Connect can
+# forward OpenCode completion notifications to Android. The plugin
+# (@mohak34/opencode-notifier) calls notify-send without --app-name, so KDE
+# Connect has no way to identify the source and its forwarding rules don't
+# fire. /home/user/bin precedes /usr/bin in PATH, so this wrapper intercepts
+# every bare `notify-send` call and adds the flag when absent.
+RUN mkdir -p /home/user/bin \
+    && printf '%s\n' \
+        '#!/bin/bash' \
+        '# Injects --app-name="OpenCode" when not already provided so KDE Connect' \
+        '# can forward notifications to Android.' \
+        'HAS_APP_NAME=0' \
+        'for arg in "$@"; do' \
+        '    case "$arg" in' \
+        '        --app-name*|-a*)' \
+        '            HAS_APP_NAME=1' \
+        '            break' \
+        '            ;;' \
+        '    esac' \
+        'done' \
+        'if [ "$HAS_APP_NAME" -eq 0 ]; then' \
+        '    exec /usr/bin/notify-send --app-name="OpenCode" "$@"' \
+        'else' \
+        '    exec /usr/bin/notify-send "$@"' \
+        'fi' \
+        > /home/user/bin/notify-send \
+    && chmod +x /home/user/bin/notify-send \
+    && chown -R 1000:1000 /home/user/bin
+
 USER user
