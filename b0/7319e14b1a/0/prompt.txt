@@ -1,0 +1,1 @@
+the last changes made my prompt look broken. run the container yourself, inspect the prompt, adjust the scripts and fix the prompt, build and restart the container until it is fixed
