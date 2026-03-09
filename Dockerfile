@@ -35,6 +35,7 @@ RUN apt-get update \
     libnotify-bin \
     libasound2t64 \
     pulseaudio-utils \
+    sound-theme-freedesktop \
     libatk-bridge2.0-0 \
     libatk1.0-0 \
     libatspi2.0-0 \

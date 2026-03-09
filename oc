@@ -110,11 +110,18 @@ if [ -n "${DBUS_SESSION_BUS_ADDRESS}" ]; then
     fi
 fi
 
-# Forward host PipeWire socket so paplay (via pipewire-pulse) can play sounds inside the container
-PIPEWIRE_SOCKET="${RUNTIME_DIR}/pipewire-0"
-if [ -S "${PIPEWIRE_SOCKET}" ]; then
-    PIPEWIRE_MOUNT="-v ${PIPEWIRE_SOCKET}:${PIPEWIRE_SOCKET}"
-    PIPEWIRE_ENV="-e PULSE_SERVER=unix:${PIPEWIRE_SOCKET}"
+# Forward host PipeWire-PulseAudio socket so paplay can play sounds inside the container
+# pipewire-pulse creates a PulseAudio-compatible socket at pulse/native;
+# paplay cannot use the native pipewire-0 socket directly.
+PULSE_NATIVE_SOCKET="${RUNTIME_DIR}/pulse/native"
+PULSE_NATIVE_DIR="${RUNTIME_DIR}/pulse"
+if [ -S "${PULSE_NATIVE_SOCKET}" ]; then
+    PIPEWIRE_MOUNT="-v ${PULSE_NATIVE_DIR}:${PULSE_NATIVE_DIR}"
+    PIPEWIRE_ENV="-e PULSE_SERVER=unix:${PULSE_NATIVE_SOCKET}"
+elif [ -S "${RUNTIME_DIR}/pipewire-0" ]; then
+    # Fallback: mount the native PipeWire socket (less compatible with paplay)
+    PIPEWIRE_MOUNT="-v ${RUNTIME_DIR}/pipewire-0:${RUNTIME_DIR}/pipewire-0"
+    PIPEWIRE_ENV="-e PULSE_SERVER=unix:${RUNTIME_DIR}/pipewire-0"
 fi
 
 
