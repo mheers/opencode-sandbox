@@ -1,0 +1,1 @@
+the audio notification is not send from inside the docker container. fix it in a loop until it works
