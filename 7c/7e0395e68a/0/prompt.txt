@@ -1,0 +1,1 @@
+the installed skills are not available inside the container. I need those to be merged with the ones installed on the host
