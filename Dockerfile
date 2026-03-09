@@ -32,6 +32,7 @@ RUN apt-get update \
     iputils-ping \
     jq \
     less \
+    libnotify-bin \
     libasound2t64 \
     libatk-bridge2.0-0 \
     libatk1.0-0 \

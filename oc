@@ -63,6 +63,8 @@ KVM_GROUP_ADD=""
 KVM_DEVICE=""
 GITCONFIG_MOUNT=""
 GITCONFIG_PATH="/home/user/.gitconfig.host"
+DBUS_MOUNT=""
+DBUS_ENV=""
 
 if [ -S "${GPG_SOCKET_DIR}/S.gpg-agent" ]; then
     GPG_SOCKET_MOUNT="-v ${GPG_SOCKET_DIR}:${GPG_SOCKET_DIR} -v ${GPG_SOCKET_DIR}/S.gpg-agent:/home/user/.gnupg/S.gpg-agent"
@@ -95,6 +97,15 @@ fi
 if [ -f "$(pwd)/.gitconfig.oc" ]; then
     GITCONFIG_MOUNT="-v $(pwd)/.gitconfig.oc:/home/user/.gitconfig:ro"
     GITCONFIG_PATH="/home/user/.gitconfig"
+fi
+
+# Forward host D-Bus session so libnotify (notify-send) works inside the container
+if [ -n "${DBUS_SESSION_BUS_ADDRESS}" ]; then
+    DBUS_SOCKET=$(echo "${DBUS_SESSION_BUS_ADDRESS}" | sed 's|unix:path=||')
+    if [ -S "${DBUS_SOCKET}" ]; then
+        DBUS_MOUNT="-v ${DBUS_SOCKET}:${DBUS_SOCKET}"
+        DBUS_ENV="-e DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS}"
+    fi
 fi
 
 
@@ -147,4 +158,6 @@ docker run -it --rm \
     --entrypoint /usr/bin/zsh \
     ${GPG_TTY_ENV} \
     ${SSH_AUTH_ENV} \
+    ${DBUS_MOUNT} \
+    ${DBUS_ENV} \
     "${IMAGE_NAME}" -i "$@"
