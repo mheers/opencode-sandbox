@@ -1,0 +1,1 @@
+check the last changes where we added the notifications. without docker a sound is played. running inside docker I receive the notification on the host, but no sound.
