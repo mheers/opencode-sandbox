@@ -6,9 +6,88 @@
 #   -t, --tmux [image]  Run inside a tmux session named after the current directory.
 #                       Optionally accepts a Docker image reference to use instead of
 #                       the default image (e.g. `oc -t myrepo/myimage:tag`).
+#   -u, --usb           Interactively select one or more USB devices to pass through
+#                       into the container via --device.
 
 USE_TMUX=false
 CUSTOM_IMAGE=""
+USB_DEVICES=()
+
+# Interactively pick USB devices from lsusb output.
+# Populates the USB_DEVICES array with /dev/bus/usb/<bus>/<dev> paths.
+select_usb_devices() {
+    if ! command -v lsusb &>/dev/null; then
+        echo "Error: lsusb not found. Install usbutils to use --usb." >&2
+        exit 1
+    fi
+
+    # Build a list: "Bus 005 Device 002: ID 0b48:2003 TechnoTrend AG TT-USB..."
+    local usb_list
+    usb_list=$(lsusb) || { echo "Error: lsusb failed." >&2; exit 1; }
+
+    if [ -z "$usb_list" ]; then
+        echo "No USB devices found." >&2
+        exit 1
+    fi
+
+    local selected
+    if command -v fzf &>/dev/null; then
+        # Multi-select with fzf
+        selected=$(echo "$usb_list" | fzf --multi --prompt="Select USB device(s) > " \
+            --header="TAB to multi-select, ENTER to confirm, ESC to cancel")
+    else
+        # Fallback: numbered menu
+        local lines=()
+        while IFS= read -r line; do
+            lines+=("$line")
+        done <<< "$usb_list"
+
+        echo "Available USB devices:" >&2
+        for i in "${!lines[@]}"; do
+            printf "  [%d] %s\n" "$((i+1))" "${lines[$i]}" >&2
+        done
+        echo >&2
+        printf "Enter device number(s) separated by spaces: " >&2
+        read -r choices
+        for c in $choices; do
+            if [[ "$c" =~ ^[0-9]+$ ]] && [ "$c" -ge 1 ] && [ "$c" -le "${#lines[@]}" ]; then
+                selected+="${lines[$((c-1))]}"$'\n'
+            else
+                echo "Warning: invalid selection '$c' ignored." >&2
+            fi
+        done
+    fi
+
+    if [ -z "$selected" ]; then
+        echo "No device selected." >&2
+        exit 1
+    fi
+
+    # Parse selected lines into /dev/bus/usb/<bus>/<device> paths
+    while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        # Format: "Bus NNN Device NNN: ID ..."
+        local bus dev
+        bus=$(echo "$line" | sed -n 's/^Bus \([0-9]\+\) .*/\1/p')
+        dev=$(echo "$line"  | sed -n 's/^Bus [0-9]\+ Device \([0-9]\+\):.*/\1/p')
+        if [ -z "$bus" ] || [ -z "$dev" ]; then
+            echo "Warning: could not parse bus/device from: $line" >&2
+            continue
+        fi
+        local dev_path
+        dev_path="/dev/bus/usb/$(printf '%03d' "$bus")/$(printf '%03d' "$dev")"
+        if [ ! -e "$dev_path" ]; then
+            echo "Warning: device path $dev_path does not exist on host." >&2
+            continue
+        fi
+        USB_DEVICES+=("$dev_path")
+    done <<< "$selected"
+
+    if [ ${#USB_DEVICES[@]} -eq 0 ]; then
+        echo "Error: no valid USB device paths resolved." >&2
+        exit 1
+    fi
+}
 
 # Parse flags
 while [[ $# -gt 0 ]]; do
@@ -22,6 +101,10 @@ while [[ $# -gt 0 ]]; do
                 CUSTOM_IMAGE="$1"
                 shift
             fi
+            ;;
+        -u|--usb)
+            select_usb_devices
+            shift
             ;;
         --)
             shift
@@ -85,6 +168,8 @@ DOCKER_GROUP_ADD=""
 KVM_GID=""
 KVM_GROUP_ADD=""
 KVM_DEVICE=""
+USB_DEVICE_ARGS=()
+USB_CAP_MKNOD=""
 GITCONFIG_MOUNT=""
 GITCONFIG_PATH="/home/user/.gitconfig.host"
 DBUS_MOUNT=""
@@ -118,6 +203,14 @@ if [ -e /dev/kvm ]; then
     KVM_GID=$(stat -c '%g' /dev/kvm)
     KVM_GROUP_ADD="--group-add ${KVM_GID}"
     KVM_DEVICE="--device /dev/kvm"
+fi
+
+# Build --device flags for any USB devices selected via -u/--usb
+for usb_path in "${USB_DEVICES[@]}"; do
+    USB_DEVICE_ARGS+=("--device" "${usb_path}:${usb_path}")
+done
+if [ ${#USB_DEVICE_ARGS[@]} -gt 0 ]; then
+    USB_CAP_MKNOD="--cap-add CAP_MKNOD"
 fi
 
 if [ -f "$(pwd)/.gitconfig.oc" ]; then
@@ -194,6 +287,8 @@ docker run -it --rm \
     ${DOCKER_GROUP_ADD} \
     ${KVM_GROUP_ADD} \
     ${KVM_DEVICE} \
+    "${USB_DEVICE_ARGS[@]}" \
+    ${USB_CAP_MKNOD} \
     -e GIT_CONFIG_GLOBAL="${GITCONFIG_PATH}" \
     --entrypoint /usr/local/bin/entrypoint.sh \
     ${GPG_TTY_ENV} \

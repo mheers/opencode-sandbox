@@ -81,6 +81,7 @@ RUN apt-get update \
     tig \
     traceroute \
     unzip \
+    usbutils \
     wget \
     xz-utils \
     zsh \
