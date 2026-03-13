@@ -1,0 +1,870 @@
+{
+  "info": {
+    "id": "ses_3188b7ffcffeWafmZLcVZNInrn",
+    "slug": "curious-moon",
+    "projectID": "dcaeb9b5774bb38db10612ac1eb67eb53539a38c",
+    "directory": "/home/user/project",
+    "title": "oc -t accept Docker image reference for container selection",
+    "version": "1.2.25",
+    "summary": {
+      "additions": 29,
+      "deletions": 5,
+      "files": 1
+    },
+    "time": {
+      "created": 1773409697795,
+      "updated": 1773409770313
+    }
+  },
+  "messages": [
+    {
+      "info": {
+        "role": "user",
+        "time": {
+          "created": 1773409697820
+        },
+        "summary": {
+          "diffs": [
+            {
+              "file": "oc",
+              "before": "#!/bin/bash\n# OpenCode Docker wrapper - run from any directory\n# Symlink this to ~/bin/oc or add to PATH\n#\n# Flags:\n#   -t, --tmux    Run inside a tmux session named after the current directory\n\nUSE_TMUX=false\n\n# Parse flags\nwhile [[ $# -gt 0 ]]; do\n    case \"$1\" in\n        -t|--tmux)\n            USE_TMUX=true\n            shift\n            ;;\n        --)\n            shift\n            break\n            ;;\n        *)\n            break\n            ;;\n    esac\ndone\n\n# If --tmux requested and we're not already inside the target session,\n# re-exec this script (without -t) inside a new/existing tmux session.\nif [ \"${USE_TMUX}\" = true ]; then\n    TMUX_SESSION=$(basename \"$(pwd)\" | tr '.' '_')\n    SELF=\"$(readlink -f \"$0\")\"\n\n    if [ -n \"${TMUX}\" ]; then\n        # Already inside tmux — check if it's the right session\n        CURRENT_SESSION=$(tmux display-message -p '#S')\n        if [ \"${CURRENT_SESSION}\" = \"${TMUX_SESSION}\" ]; then\n            # Already in the target session, just run oc normally\n            exec \"${SELF}\" \"$@\"\n        fi\n    fi\n\n    # Launch or attach to the tmux session, running oc inside it\n    exec tmux new-session -A -s \"${TMUX_SESSION}\" \"${SELF}\" \"$@\"\nfi\n\nIMAGE_NAME=\"mheers/opencode-sandbox:latest\"\n# Generate unique container name based on current directory\nDIR_HASH=$(echo \"$(pwd)\" | md5sum | cut -c1-8)\nCONTAINER_NAME=\"opencode-${DIR_HASH}\"\nLOCAL_VOLUME=\"opencode-local-${DIR_HASH}\"\nUSER_ID=$(id -u)\nGROUP_ID=$(id -g)\nRUNTIME_DIR=\"/run/user/${USER_ID}\"\nGPG_SOCKET_DIR=\"${RUNTIME_DIR}/gnupg\"\nGPG_SOCKET_MOUNT=\"\"\nGPG_TTY_ENV=\"\"\nSSH_AUTH_MOUNT=\"\"\nSSH_AUTH_ENV=\"\"\nDOCKER_GID=\"\"\nDOCKER_GROUP_ADD=\"\"\nKVM_GID=\"\"\nKVM_GROUP_ADD=\"\"\nKVM_DEVICE=\"\"\nGITCONFIG_MOUNT=\"\"\nGITCONFIG_PATH=\"/home/user/.gitconfig.host\"\nDBUS_MOUNT=\"\"\nDBUS_ENV=\"\"\nPIPEWIRE_MOUNT=\"\"\nPIPEWIRE_ENV=\"\"\n\nif [ -S \"${GPG_SOCKET_DIR}/S.gpg-agent\" ]; then\n    GPG_SOCKET_MOUNT=\"-v ${GPG_SOCKET_DIR}:${GPG_SOCKET_DIR} -v ${GPG_SOCKET_DIR}/S.gpg-agent:/home/user/.gnupg/S.gpg-agent\"\n    GPG_TTY_ENV=\"-e GPG_TTY=$(tty)\"\nfi\n\nif [ -S \"${SSH_AUTH_SOCK}\" ]; then\n    SSH_AUTH_MOUNT=\"-v ${SSH_AUTH_SOCK}:/ssh-agent\"\n    SSH_AUTH_ENV=\"-e SSH_AUTH_SOCK=/ssh-agent\"\nfi\n\nif [ -z \"${SSH_AUTH_SOCK}\" ] && [ -S \"${GPG_SOCKET_DIR}/S.gpg-agent.ssh\" ]; then\n    if [ -z \"${GPG_SOCKET_MOUNT}\" ]; then\n        GPG_SOCKET_MOUNT=\"-v ${GPG_SOCKET_DIR}:${GPG_SOCKET_DIR}\"\n    fi\n    SSH_AUTH_ENV=\"-e SSH_AUTH_SOCK=${GPG_SOCKET_DIR}/S.gpg-agent.ssh\"\nfi\n\nif [ -S /var/run/docker.sock ]; then\n    DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)\n    DOCKER_GROUP_ADD=\"--group-add ${DOCKER_GID}\"\nfi\n\nif [ -e /dev/kvm ]; then\n    KVM_GID=$(stat -c '%g' /dev/kvm)\n    KVM_GROUP_ADD=\"--group-add ${KVM_GID}\"\n    KVM_DEVICE=\"--device /dev/kvm\"\nfi\n\nif [ -f \"$(pwd)/.gitconfig.oc\" ]; then\n    GITCONFIG_MOUNT=\"-v $(pwd)/.gitconfig.oc:/home/user/.gitconfig:ro\"\n    GITCONFIG_PATH=\"/home/user/.gitconfig\"\nfi\n\n# Forward host D-Bus session so libnotify (notify-send) works inside the container\nif [ -n \"${DBUS_SESSION_BUS_ADDRESS}\" ]; then\n    DBUS_SOCKET=$(echo \"${DBUS_SESSION_BUS_ADDRESS}\" | sed 's|unix:path=||')\n    if [ -S \"${DBUS_SOCKET}\" ]; then\n        DBUS_MOUNT=\"-v ${DBUS_SOCKET}:${DBUS_SOCKET}\"\n        DBUS_ENV=\"-e DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS}\"\n    fi\nfi\n\n# Forward host PipeWire-PulseAudio socket so paplay can play sounds inside the container\n# pipewire-pulse creates a PulseAudio-compatible socket at pulse/native;\n# paplay cannot use the native pipewire-0 socket directly.\nPULSE_NATIVE_SOCKET=\"${RUNTIME_DIR}/pulse/native\"\nPULSE_NATIVE_DIR=\"${RUNTIME_DIR}/pulse\"\nif [ -S \"${PULSE_NATIVE_SOCKET}\" ]; then\n    PIPEWIRE_MOUNT=\"-v ${PULSE_NATIVE_DIR}:${PULSE_NATIVE_DIR}\"\n    PIPEWIRE_ENV=\"-e PULSE_SERVER=unix:${PULSE_NATIVE_SOCKET}\"\nelif [ -S \"${RUNTIME_DIR}/pipewire-0\" ]; then\n    # Fallback: mount the native PipeWire socket (less compatible with paplay)\n    PIPEWIRE_MOUNT=\"-v ${RUNTIME_DIR}/pipewire-0:${RUNTIME_DIR}/pipewire-0\"\n    PIPEWIRE_ENV=\"-e PULSE_SERVER=unix:${RUNTIME_DIR}/pipewire-0\"\nfi\n\n\n# Check if container already exists and is running\nif docker ps -q -f name=\"^${CONTAINER_NAME}$\" | grep -q .; then\n    echo \"Container ${CONTAINER_NAME} already running, attaching...\"\n    docker exec -it \"${CONTAINER_NAME}\" /usr/bin/zsh -i \"$@\"\n    exit $?\nfi\n\n# Check if container exists but is stopped\nif docker ps -aq -f name=\"^${CONTAINER_NAME}$\" | grep -q .; then\n    echo \"Starting existing container ${CONTAINER_NAME}...\"\n    docker start \"${CONTAINER_NAME}\"\n    docker exec -it \"${CONTAINER_NAME}\" /usr/bin/zsh -i \"$@\"\n    exit $?\nfi\n\ndocker run -it --rm \\\n    --name \"${CONTAINER_NAME}\" \\\n    --network host \\\n    --user \"${USER_ID}:${GROUP_ID}\" \\\n    -e HOME=/home/user \\\n    -e PATH=/home/user/.opencode/bin:/home/user/.bun/bin:/home/user/.ocx/bin:/home/user/bin:/home/user/.local/bin:/home/user/go/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin \\\n    -v \"$(pwd)\":/home/user/project \\\n    -v \"${HOME}/.opencode:/home/user/.opencode\" \\\n    -v \"${HOME}/.config/opencode:/home/user/.config/opencode\" \\\n    -v \"${LOCAL_VOLUME}:/home/user/.local\" \\\n    -v \"${HOME}/.local/share/opencode:/home/user/.local/share/opencode\" \\\n    --tmpfs /home/user/.local/state:uid=\"${USER_ID}\",gid=\"${GROUP_ID}\",mode=700 \\\n    -v \"${HOME}/.local/state/opencode:/home/user/.local/state/opencode\" \\\n    -e AGENT_BROWSER_SOCKET_DIR=/home/user/.local/state/agent-browser \\\n    -e AGENT_BROWSER_HOME=/opt/agent-browser \\\n    -v \"${HOME}/.gitconfig:/home/user/.gitconfig.host:ro\" \\\n    ${GITCONFIG_MOUNT} \\\n    -v \"${HOME}/.gnupg:/home/user/.gnupg\" \\\n    -v \"${HOME}/.ssh:/home/user/.ssh:ro\" \\\n    -v \"/var/run/docker.sock:/var/run/docker.sock\" \\\n    ${GPG_SOCKET_MOUNT} \\\n    ${SSH_AUTH_MOUNT} \\\n    --tmpfs /home/user/.cache:uid=\"${USER_ID}\",gid=\"${GROUP_ID}\",mode=700 \\\n    -v \"${HOME}/.cache/ms-playwright:/home/user/.cache/ms-playwright\" \\\n    -v \"${HOME}/.cache/opencode:/home/user/.cache/opencode\" \\\n    -v \"${HOME}/.bun/install/cache:/home/user/.bun/install/cache\" \\\n    -w /home/user/project \\\n    ${DOCKER_GROUP_ADD} \\\n    ${KVM_GROUP_ADD} \\\n    ${KVM_DEVICE} \\\n    -e GIT_CONFIG_GLOBAL=\"${GITCONFIG_PATH}\" \\\n    --entrypoint /usr/local/bin/entrypoint.sh \\\n    ${GPG_TTY_ENV} \\\n    ${SSH_AUTH_ENV} \\\n    ${DBUS_MOUNT} \\\n    ${DBUS_ENV} \\\n    ${PIPEWIRE_MOUNT} \\\n    ${PIPEWIRE_ENV} \\\n    \"${IMAGE_NAME}\" /usr/bin/zsh -i \"$@\"\n",
+              "after": "#!/bin/bash\n# OpenCode Docker wrapper - run from any directory\n# Symlink this to ~/bin/oc or add to PATH\n#\n# Flags:\n#   -t, --tmux [image]  Run inside a tmux session named after the current directory.\n#                       Optionally accepts a Docker image reference to use instead of\n#                       the default image (e.g. `oc -t myrepo/myimage:tag`).\n\nUSE_TMUX=false\nCUSTOM_IMAGE=\"\"\n\n# Parse flags\nwhile [[ $# -gt 0 ]]; do\n    case \"$1\" in\n        -t|--tmux)\n            USE_TMUX=true\n            shift\n            # If the next argument looks like a Docker image reference (not a flag),\n            # consume it as the custom image name.\n            if [[ $# -gt 0 && \"$1\" != -* ]]; then\n                CUSTOM_IMAGE=\"$1\"\n                shift\n            fi\n            ;;\n        --)\n            shift\n            break\n            ;;\n        *)\n            break\n            ;;\n    esac\ndone\n\n# If --tmux requested and we're not already inside the target session,\n# re-exec this script (without -t) inside a new/existing tmux session.\nif [ \"${USE_TMUX}\" = true ]; then\n    TMUX_SESSION=$(basename \"$(pwd)\" | tr '.' '_')\n    SELF=\"$(readlink -f \"$0\")\"\n\n    if [ -n \"${TMUX}\" ]; then\n        # Already inside tmux — check if it's the right session\n        CURRENT_SESSION=$(tmux display-message -p '#S')\n        if [ \"${CURRENT_SESSION}\" = \"${TMUX_SESSION}\" ]; then\n            # Already in the target session, just run oc normally (pass image if set)\n            if [ -n \"${CUSTOM_IMAGE}\" ]; then\n                exec \"${SELF}\" --image \"${CUSTOM_IMAGE}\" \"$@\"\n            else\n                exec \"${SELF}\" \"$@\"\n            fi\n        fi\n    fi\n\n    # Launch or attach to the tmux session, running oc inside it\n    if [ -n \"${CUSTOM_IMAGE}\" ]; then\n        exec tmux new-session -A -s \"${TMUX_SESSION}\" \"${SELF}\" --image \"${CUSTOM_IMAGE}\" \"$@\"\n    else\n        exec tmux new-session -A -s \"${TMUX_SESSION}\" \"${SELF}\" \"$@\"\n    fi\nfi\n\n# Internal flag --image: passes a custom Docker image reference when re-execing\n# from within the tmux branch above. Users may also call it directly.\nif [[ $# -gt 0 && \"$1\" == \"--image\" ]]; then\n    CUSTOM_IMAGE=\"$2\"\n    shift 2\nfi\n\nIMAGE_NAME=\"${CUSTOM_IMAGE:-mheers/opencode-sandbox:latest}\"\n# Generate unique container name based on current directory\nDIR_HASH=$(echo \"$(pwd)\" | md5sum | cut -c1-8)\nCONTAINER_NAME=\"opencode-${DIR_HASH}\"\nLOCAL_VOLUME=\"opencode-local-${DIR_HASH}\"\nUSER_ID=$(id -u)\nGROUP_ID=$(id -g)\nRUNTIME_DIR=\"/run/user/${USER_ID}\"\nGPG_SOCKET_DIR=\"${RUNTIME_DIR}/gnupg\"\nGPG_SOCKET_MOUNT=\"\"\nGPG_TTY_ENV=\"\"\nSSH_AUTH_MOUNT=\"\"\nSSH_AUTH_ENV=\"\"\nDOCKER_GID=\"\"\nDOCKER_GROUP_ADD=\"\"\nKVM_GID=\"\"\nKVM_GROUP_ADD=\"\"\nKVM_DEVICE=\"\"\nGITCONFIG_MOUNT=\"\"\nGITCONFIG_PATH=\"/home/user/.gitconfig.host\"\nDBUS_MOUNT=\"\"\nDBUS_ENV=\"\"\nPIPEWIRE_MOUNT=\"\"\nPIPEWIRE_ENV=\"\"\n\nif [ -S \"${GPG_SOCKET_DIR}/S.gpg-agent\" ]; then\n    GPG_SOCKET_MOUNT=\"-v ${GPG_SOCKET_DIR}:${GPG_SOCKET_DIR} -v ${GPG_SOCKET_DIR}/S.gpg-agent:/home/user/.gnupg/S.gpg-agent\"\n    GPG_TTY_ENV=\"-e GPG_TTY=$(tty)\"\nfi\n\nif [ -S \"${SSH_AUTH_SOCK}\" ]; then\n    SSH_AUTH_MOUNT=\"-v ${SSH_AUTH_SOCK}:/ssh-agent\"\n    SSH_AUTH_ENV=\"-e SSH_AUTH_SOCK=/ssh-agent\"\nfi\n\nif [ -z \"${SSH_AUTH_SOCK}\" ] && [ -S \"${GPG_SOCKET_DIR}/S.gpg-agent.ssh\" ]; then\n    if [ -z \"${GPG_SOCKET_MOUNT}\" ]; then\n        GPG_SOCKET_MOUNT=\"-v ${GPG_SOCKET_DIR}:${GPG_SOCKET_DIR}\"\n    fi\n    SSH_AUTH_ENV=\"-e SSH_AUTH_SOCK=${GPG_SOCKET_DIR}/S.gpg-agent.ssh\"\nfi\n\nif [ -S /var/run/docker.sock ]; then\n    DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)\n    DOCKER_GROUP_ADD=\"--group-add ${DOCKER_GID}\"\nfi\n\nif [ -e /dev/kvm ]; then\n    KVM_GID=$(stat -c '%g' /dev/kvm)\n    KVM_GROUP_ADD=\"--group-add ${KVM_GID}\"\n    KVM_DEVICE=\"--device /dev/kvm\"\nfi\n\nif [ -f \"$(pwd)/.gitconfig.oc\" ]; then\n    GITCONFIG_MOUNT=\"-v $(pwd)/.gitconfig.oc:/home/user/.gitconfig:ro\"\n    GITCONFIG_PATH=\"/home/user/.gitconfig\"\nfi\n\n# Forward host D-Bus session so libnotify (notify-send) works inside the container\nif [ -n \"${DBUS_SESSION_BUS_ADDRESS}\" ]; then\n    DBUS_SOCKET=$(echo \"${DBUS_SESSION_BUS_ADDRESS}\" | sed 's|unix:path=||')\n    if [ -S \"${DBUS_SOCKET}\" ]; then\n        DBUS_MOUNT=\"-v ${DBUS_SOCKET}:${DBUS_SOCKET}\"\n        DBUS_ENV=\"-e DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS}\"\n    fi\nfi\n\n# Forward host PipeWire-PulseAudio socket so paplay can play sounds inside the container\n# pipewire-pulse creates a PulseAudio-compatible socket at pulse/native;\n# paplay cannot use the native pipewire-0 socket directly.\nPULSE_NATIVE_SOCKET=\"${RUNTIME_DIR}/pulse/native\"\nPULSE_NATIVE_DIR=\"${RUNTIME_DIR}/pulse\"\nif [ -S \"${PULSE_NATIVE_SOCKET}\" ]; then\n    PIPEWIRE_MOUNT=\"-v ${PULSE_NATIVE_DIR}:${PULSE_NATIVE_DIR}\"\n    PIPEWIRE_ENV=\"-e PULSE_SERVER=unix:${PULSE_NATIVE_SOCKET}\"\nelif [ -S \"${RUNTIME_DIR}/pipewire-0\" ]; then\n    # Fallback: mount the native PipeWire socket (less compatible with paplay)\n    PIPEWIRE_MOUNT=\"-v ${RUNTIME_DIR}/pipewire-0:${RUNTIME_DIR}/pipewire-0\"\n    PIPEWIRE_ENV=\"-e PULSE_SERVER=unix:${RUNTIME_DIR}/pipewire-0\"\nfi\n\n\n# Check if container already exists and is running\nif docker ps -q -f name=\"^${CONTAINER_NAME}$\" | grep -q .; then\n    echo \"Container ${CONTAINER_NAME} already running, attaching...\"\n    docker exec -it \"${CONTAINER_NAME}\" /usr/bin/zsh -i \"$@\"\n    exit $?\nfi\n\n# Check if container exists but is stopped\nif docker ps -aq -f name=\"^${CONTAINER_NAME}$\" | grep -q .; then\n    echo \"Starting existing container ${CONTAINER_NAME}...\"\n    docker start \"${CONTAINER_NAME}\"\n    docker exec -it \"${CONTAINER_NAME}\" /usr/bin/zsh -i \"$@\"\n    exit $?\nfi\n\ndocker run -it --rm \\\n    --name \"${CONTAINER_NAME}\" \\\n    --network host \\\n    --user \"${USER_ID}:${GROUP_ID}\" \\\n    -e HOME=/home/user \\\n    -e PATH=/home/user/.opencode/bin:/home/user/.bun/bin:/home/user/.ocx/bin:/home/user/bin:/home/user/.local/bin:/home/user/go/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin \\\n    -v \"$(pwd)\":/home/user/project \\\n    -v \"${HOME}/.opencode:/home/user/.opencode\" \\\n    -v \"${HOME}/.config/opencode:/home/user/.config/opencode\" \\\n    -v \"${LOCAL_VOLUME}:/home/user/.local\" \\\n    -v \"${HOME}/.local/share/opencode:/home/user/.local/share/opencode\" \\\n    --tmpfs /home/user/.local/state:uid=\"${USER_ID}\",gid=\"${GROUP_ID}\",mode=700 \\\n    -v \"${HOME}/.local/state/opencode:/home/user/.local/state/opencode\" \\\n    -e AGENT_BROWSER_SOCKET_DIR=/home/user/.local/state/agent-browser \\\n    -e AGENT_BROWSER_HOME=/opt/agent-browser \\\n    -v \"${HOME}/.gitconfig:/home/user/.gitconfig.host:ro\" \\\n    ${GITCONFIG_MOUNT} \\\n    -v \"${HOME}/.gnupg:/home/user/.gnupg\" \\\n    -v \"${HOME}/.ssh:/home/user/.ssh:ro\" \\\n    -v \"/var/run/docker.sock:/var/run/docker.sock\" \\\n    ${GPG_SOCKET_MOUNT} \\\n    ${SSH_AUTH_MOUNT} \\\n    --tmpfs /home/user/.cache:uid=\"${USER_ID}\",gid=\"${GROUP_ID}\",mode=700 \\\n    -v \"${HOME}/.cache/ms-playwright:/home/user/.cache/ms-playwright\" \\\n    -v \"${HOME}/.cache/opencode:/home/user/.cache/opencode\" \\\n    -v \"${HOME}/.bun/install/cache:/home/user/.bun/install/cache\" \\\n    -w /home/user/project \\\n    ${DOCKER_GROUP_ADD} \\\n    ${KVM_GROUP_ADD} \\\n    ${KVM_DEVICE} \\\n    -e GIT_CONFIG_GLOBAL=\"${GITCONFIG_PATH}\" \\\n    --entrypoint /usr/local/bin/entrypoint.sh \\\n    ${GPG_TTY_ENV} \\\n    ${SSH_AUTH_ENV} \\\n    ${DBUS_MOUNT} \\\n    ${DBUS_ENV} \\\n    ${PIPEWIRE_MOUNT} \\\n    ${PIPEWIRE_ENV} \\\n    \"${IMAGE_NAME}\" /usr/bin/zsh -i \"$@\"\n",
+              "additions": 29,
+              "deletions": 5,
+              "status": "modified"
+            }
+          ]
+        },
+        "agent": "build",
+        "model": {
+          "providerID": "github-copilot",
+          "modelID": "claude-sonnet-4.6"
+        },
+        "id": "msg_ce7748014001f5digGrlxCXc0t",
+        "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn"
+      },
+      "parts": [
+        {
+          "type": "text",
+          "text": "adjust the \"oc -t\" that it also accepts an docker image reference as parameter to run in a specified container (and not the default one)",
+          "id": "prt_ce77480140025AsCUDr5jSsrN8",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "msg_ce7748014001f5digGrlxCXc0t"
+        }
+      ]
+    },
+    {
+      "info": {
+        "role": "assistant",
+        "time": {
+          "created": 1773409697833,
+          "completed": 1773409701229
+        },
+        "parentID": "msg_ce7748014001f5digGrlxCXc0t",
+        "modelID": "claude-sonnet-4.6",
+        "providerID": "github-copilot",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/user/project",
+          "root": "/home/user/project"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 17207,
+          "input": 17130,
+          "output": 77,
+          "reasoning": 0,
+          "cache": {
+            "read": 0,
+            "write": 0
+          }
+        },
+        "finish": "tool-calls",
+        "id": "msg_ce7748029001joi3tamRF7tfCG",
+        "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn"
+      },
+      "parts": [
+        {
+          "type": "step-start",
+          "snapshot": "bd141c5ab345bfdac4b5e69acf9bc19636fb51ac",
+          "id": "REDACTED",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "msg_ce7748029001joi3tamRF7tfCG"
+        },
+        {
+          "type": "text",
+          "text": "Let me start by exploring the project structure to understand the current `oc` wrapper script.",
+          "time": {
+            "start": 1773409701210,
+            "end": 1773409701210
+          },
+          "id": "prt_ce7748a66001d2OfFjqrUr6Kmf",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "msg_ce7748029001joi3tamRF7tfCG"
+        },
+        {
+          "type": "tool",
+          "callID": "tooluse_sTAnMmjU6fjySbJrvKsEno",
+          "tool": "read",
+          "state": {
+            "status": "completed",
+            "input": {
+              "filePath": "/home/user/project"
+            },
+            "output": "<path>/home/user/project</path>\n<type>directory</type>\n<entries>\n.entire/\n.git/\n.gitconfig.oc\n.github/\n.opencode/\nAGENTS.md\nDockerfile\nentrypoint.sh\nLICENSE\nMakefile\noc\nREADME.md\nskills/\n\n(13 entries)\n</entries>",
+            "title": "",
+            "metadata": {
+              "preview": ".entire/\n.git/\n.gitconfig.oc\n.github/\n.opencode/\nAGENTS.md\nDockerfile\nentrypoint.sh\nLICENSE\nMakefile\noc\nREADME.md\nskills/",
+              "truncated": false,
+              "loaded": []
+            },
+            "time": {
+              "start": 1773409701209,
+              "end": 1773409701210
+            }
+          },
+          "id": "prt_ce7748d35001ktg5f07b1GI9HX",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "msg_ce7748029001joi3tamRF7tfCG"
+        },
+        {
+          "type": "step-finish",
+          "reason": "tool-calls",
+          "snapshot": "bd141c5ab345bfdac4b5e69acf9bc19636fb51ac",
+          "cost": 0,
+          "tokens": {
+            "total": 17207,
+            "input": 17130,
+            "output": 77,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "id": "prt_ce7748d5c001oRy75nhi6RgS07",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "msg_ce7748029001joi3tamRF7tfCG"
+        }
+      ]
+    },
+    {
+      "info": {
+        "role": "assistant",
+        "time": {
+          "created": 1773409701231,
+          "completed": 1773409703915
+        },
+        "parentID": "msg_ce7748014001f5digGrlxCXc0t",
+        "modelID": "claude-sonnet-4.6",
+        "providerID": "github-copilot",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/user/project",
+          "root": "/home/user/project"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 17364,
+          "input": 528,
+          "output": 60,
+          "reasoning": 0,
+          "cache": {
+            "read": 16776,
+            "write": 0
+          }
+        },
+        "finish": "tool-calls",
+        "id": "REDACTED",
+        "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn"
+      },
+      "parts": [
+        {
+          "type": "step-start",
+          "snapshot": "bd141c5ab345bfdac4b5e69acf9bc19636fb51ac",
+          "id": "prt_ce77497a8001OdM9OfOoBeJPB5",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "REDACTED"
+        },
+        {
+          "type": "tool",
+          "callID": "REDACTED",
+          "tool": "read",
+          "state": {
+            "status": "completed",
+            "input": {
+              "filePath": "/home/user/project/oc"
+            },
+            "output": "<path>/home/user/project/oc</path>\n<type>file</type>\n<content>1: #!/bin/bash\n2: # OpenCode Docker wrapper - run from any directory\n3: # Symlink this to ~/bin/oc or add to PATH\n4: #\n5: # Flags:\n6: #   -t, --tmux    Run inside a tmux session named after the current directory\n7: \n8: USE_TMUX=false\n9: \n10: # Parse flags\n11: while [[ $# -gt 0 ]]; do\n12:     case \"$1\" in\n13:         -t|--tmux)\n14:             USE_TMUX=true\n15:             shift\n16:             ;;\n17:         --)\n18:             shift\n19:             break\n20:             ;;\n21:         *)\n22:             break\n23:             ;;\n24:     esac\n25: done\n26: \n27: # If --tmux requested and we're not already inside the target session,\n28: # re-exec this script (without -t) inside a new/existing tmux session.\n29: if [ \"${USE_TMUX}\" = true ]; then\n30:     TMUX_SESSION=$(basename \"$(pwd)\" | tr '.' '_')\n31:     SELF=\"$(readlink -f \"$0\")\"\n32: \n33:     if [ -n \"${TMUX}\" ]; then\n34:         # Already inside tmux — check if it's the right session\n35:         CURRENT_SESSION=$(tmux display-message -p '#S')\n36:         if [ \"${CURRENT_SESSION}\" = \"${TMUX_SESSION}\" ]; then\n37:             # Already in the target session, just run oc normally\n38:             exec \"${SELF}\" \"$@\"\n39:         fi\n40:     fi\n41: \n42:     # Launch or attach to the tmux session, running oc inside it\n43:     exec tmux new-session -A -s \"${TMUX_SESSION}\" \"${SELF}\" \"$@\"\n44: fi\n45: \n46: IMAGE_NAME=\"mheers/opencode-sandbox:latest\"\n47: # Generate unique container name based on current directory\n48: DIR_HASH=$(echo \"$(pwd)\" | md5sum | cut -c1-8)\n49: CONTAINER_NAME=\"opencode-${DIR_HASH}\"\n50: LOCAL_VOLUME=\"opencode-local-${DIR_HASH}\"\n51: USER_ID=$(id -u)\n52: GROUP_ID=$(id -g)\n53: RUNTIME_DIR=\"/run/user/${USER_ID}\"\n54: GPG_SOCKET_DIR=\"${RUNTIME_DIR}/gnupg\"\n55: GPG_SOCKET_MOUNT=\"\"\n56: GPG_TTY_ENV=\"\"\n57: SSH_AUTH_MOUNT=\"\"\n58: SSH_AUTH_ENV=\"\"\n59: DOCKER_GID=\"\"\n60: DOCKER_GROUP_ADD=\"\"\n61: KVM_GID=\"\"\n62: KVM_GROUP_ADD=\"\"\n63: KVM_DEVICE=\"\"\n64: GITCONFIG_MOUNT=\"\"\n65: GITCONFIG_PATH=\"/home/user/.gitconfig.host\"\n66: DBUS_MOUNT=\"\"\n67: DBUS_ENV=\"\"\n68: PIPEWIRE_MOUNT=\"\"\n69: PIPEWIRE_ENV=\"\"\n70: \n71: if [ -S \"${GPG_SOCKET_DIR}/S.gpg-agent\" ]; then\n72:     GPG_SOCKET_MOUNT=\"-v ${GPG_SOCKET_DIR}:${GPG_SOCKET_DIR} -v ${GPG_SOCKET_DIR}/S.gpg-agent:/home/user/.gnupg/S.gpg-agent\"\n73:     GPG_TTY_ENV=\"-e GPG_TTY=$(tty)\"\n74: fi\n75: \n76: if [ -S \"${SSH_AUTH_SOCK}\" ]; then\n77:     SSH_AUTH_MOUNT=\"-v ${SSH_AUTH_SOCK}:/ssh-agent\"\n78:     SSH_AUTH_ENV=\"-e SSH_AUTH_SOCK=/ssh-agent\"\n79: fi\n80: \n81: if [ -z \"${SSH_AUTH_SOCK}\" ] && [ -S \"${GPG_SOCKET_DIR}/S.gpg-agent.ssh\" ]; then\n82:     if [ -z \"${GPG_SOCKET_MOUNT}\" ]; then\n83:         GPG_SOCKET_MOUNT=\"-v ${GPG_SOCKET_DIR}:${GPG_SOCKET_DIR}\"\n84:     fi\n85:     SSH_AUTH_ENV=\"-e SSH_AUTH_SOCK=${GPG_SOCKET_DIR}/S.gpg-agent.ssh\"\n86: fi\n87: \n88: if [ -S /var/run/docker.sock ]; then\n89:     DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)\n90:     DOCKER_GROUP_ADD=\"--group-add ${DOCKER_GID}\"\n91: fi\n92: \n93: if [ -e /dev/kvm ]; then\n94:     KVM_GID=$(stat -c '%g' /dev/kvm)\n95:     KVM_GROUP_ADD=\"--group-add ${KVM_GID}\"\n96:     KVM_DEVICE=\"--device /dev/kvm\"\n97: fi\n98: \n99: if [ -f \"$(pwd)/.gitconfig.oc\" ]; then\n100:     GITCONFIG_MOUNT=\"-v $(pwd)/.gitconfig.oc:/home/user/.gitconfig:ro\"\n101:     GITCONFIG_PATH=\"/home/user/.gitconfig\"\n102: fi\n103: \n104: # Forward host D-Bus session so libnotify (notify-send) works inside the container\n105: if [ -n \"${DBUS_SESSION_BUS_ADDRESS}\" ]; then\n106:     DBUS_SOCKET=$(echo \"${DBUS_SESSION_BUS_ADDRESS}\" | sed 's|unix:path=||')\n107:     if [ -S \"${DBUS_SOCKET}\" ]; then\n108:         DBUS_MOUNT=\"-v ${DBUS_SOCKET}:${DBUS_SOCKET}\"\n109:         DBUS_ENV=\"-e DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS}\"\n110:     fi\n111: fi\n112: \n113: # Forward host PipeWire-PulseAudio socket so paplay can play sounds inside the container\n114: # pipewire-pulse creates a PulseAudio-compatible socket at pulse/native;\n115: # paplay cannot use the native pipewire-0 socket directly.\n116: PULSE_NATIVE_SOCKET=\"${RUNTIME_DIR}/pulse/native\"\n117: PULSE_NATIVE_DIR=\"${RUNTIME_DIR}/pulse\"\n118: if [ -S \"${PULSE_NATIVE_SOCKET}\" ]; then\n119:     PIPEWIRE_MOUNT=\"-v ${PULSE_NATIVE_DIR}:${PULSE_NATIVE_DIR}\"\n120:     PIPEWIRE_ENV=\"-e PULSE_SERVER=unix:${PULSE_NATIVE_SOCKET}\"\n121: elif [ -S \"${RUNTIME_DIR}/pipewire-0\" ]; then\n122:     # Fallback: mount the native PipeWire socket (less compatible with paplay)\n123:     PIPEWIRE_MOUNT=\"-v ${RUNTIME_DIR}/pipewire-0:${RUNTIME_DIR}/pipewire-0\"\n124:     PIPEWIRE_ENV=\"-e PULSE_SERVER=unix:${RUNTIME_DIR}/pipewire-0\"\n125: fi\n126: \n127: \n128: # Check if container already exists and is running\n129: if docker ps -q -f name=\"^${CONTAINER_NAME}$\" | grep -q .; then\n130:     echo \"Container ${CONTAINER_NAME} already running, attaching...\"\n131:     docker exec -it \"${CONTAINER_NAME}\" /usr/bin/zsh -i \"$@\"\n132:     exit $?\n133: fi\n134: \n135: # Check if container exists but is stopped\n136: if docker ps -aq -f name=\"^${CONTAINER_NAME}$\" | grep -q .; then\n137:     echo \"Starting existing container ${CONTAINER_NAME}...\"\n138:     docker start \"${CONTAINER_NAME}\"\n139:     docker exec -it \"${CONTAINER_NAME}\" /usr/bin/zsh -i \"$@\"\n140:     exit $?\n141: fi\n142: \n143: docker run -it --rm \\\n144:     --name \"${CONTAINER_NAME}\" \\\n145:     --network host \\\n146:     --user \"${USER_ID}:${GROUP_ID}\" \\\n147:     -e HOME=/home/user \\\n148:     -e PATH=/home/user/.opencode/bin:/home/user/.bun/bin:/home/user/.ocx/bin:/home/user/bin:/home/user/.local/bin:/home/user/go/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin \\\n149:     -v \"$(pwd)\":/home/user/project \\\n150:     -v \"${HOME}/.opencode:/home/user/.opencode\" \\\n151:     -v \"${HOME}/.config/opencode:/home/user/.config/opencode\" \\\n152:     -v \"${LOCAL_VOLUME}:/home/user/.local\" \\\n153:     -v \"${HOME}/.local/share/opencode:/home/user/.local/share/opencode\" \\\n154:     --tmpfs /home/user/.local/state:uid=\"${USER_ID}\",gid=\"${GROUP_ID}\",mode=700 \\\n155:     -v \"${HOME}/.local/state/opencode:/home/user/.local/state/opencode\" \\\n156:     -e AGENT_BROWSER_SOCKET_DIR=/home/user/.local/state/agent-browser \\\n157:     -e AGENT_BROWSER_HOME=/opt/agent-browser \\\n158:     -v \"${HOME}/.gitconfig:/home/user/.gitconfig.host:ro\" \\\n159:     ${GITCONFIG_MOUNT} \\\n160:     -v \"${HOME}/.gnupg:/home/user/.gnupg\" \\\n161:     -v \"${HOME}/.ssh:/home/user/.ssh:ro\" \\\n162:     -v \"/var/run/docker.sock:/var/run/docker.sock\" \\\n163:     ${GPG_SOCKET_MOUNT} \\\n164:     ${SSH_AUTH_MOUNT} \\\n165:     --tmpfs /home/user/.cache:uid=\"${USER_ID}\",gid=\"${GROUP_ID}\",mode=700 \\\n166:     -v \"${HOME}/.cache/ms-playwright:/home/user/.cache/ms-playwright\" \\\n167:     -v \"${HOME}/.cache/opencode:/home/user/.cache/opencode\" \\\n168:     -v \"${HOME}/.bun/install/cache:/home/user/.bun/install/cache\" \\\n169:     -w /home/user/project \\\n170:     ${DOCKER_GROUP_ADD} \\\n171:     ${KVM_GROUP_ADD} \\\n172:     ${KVM_DEVICE} \\\n173:     -e GIT_CONFIG_GLOBAL=\"${GITCONFIG_PATH}\" \\\n174:     --entrypoint /usr/local/bin/entrypoint.sh \\\n175:     ${GPG_TTY_ENV} \\\n176:     ${SSH_AUTH_ENV} \\\n177:     ${DBUS_MOUNT} \\\n178:     ${DBUS_ENV} \\\n179:     ${PIPEWIRE_MOUNT} \\\n180:     ${PIPEWIRE_ENV} \\\n181:     \"${IMAGE_NAME}\" /usr/bin/zsh -i \"$@\"\n\n(End of file - total 181 lines)\n</content>",
+            "title": "oc",
+            "metadata": {
+              "preview": "#!/bin/bash\n# OpenCode Docker wrapper - run from any directory\n# Symlink this to ~/bin/oc or add to PATH\n#\n# Flags:\n#   -t, --tmux    Run inside a tmux session named after the current directory\n\nUSE_TMUX=false\n\n# Parse flags\nwhile [[ $# -gt 0 ]]; do\n    case \"$1\" in\n        -t|--tmux)\n            USE_TMUX=true\n            shift\n            ;;\n        --)\n            shift\n            break\n            ;;",
+              "truncated": false,
+              "loaded": []
+            },
+            "time": {
+              "start": 1773409703897,
+              "end": 1773409703902
+            }
+          },
+          "id": "prt_ce77497a9001APRi7Tkl4WbD0R",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "REDACTED"
+        },
+        {
+          "type": "step-finish",
+          "reason": "tool-calls",
+          "snapshot": "bd141c5ab345bfdac4b5e69acf9bc19636fb51ac",
+          "cost": 0,
+          "tokens": {
+            "total": 17364,
+            "input": 528,
+            "output": 60,
+            "reasoning": 0,
+            "cache": {
+              "read": 16776,
+              "write": 0
+            }
+          },
+          "id": "prt_ce77497df001fsJj8tZW0BsT6O",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "REDACTED"
+        }
+      ]
+    },
+    {
+      "info": {
+        "role": "assistant",
+        "time": {
+          "created": 1773409703917,
+          "completed": 1773409740817
+        },
+        "parentID": "msg_ce7748014001f5digGrlxCXc0t",
+        "modelID": "claude-sonnet-4.6",
+        "providerID": "github-copilot",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/user/project",
+          "root": "/home/user/project"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 20591,
+          "input": 2990,
+          "output": 298,
+          "reasoning": 0,
+          "cache": {
+            "read": 17303,
+            "write": 0
+          }
+        },
+        "finish": "tool-calls",
+        "id": "msg_ce77497ed001OP4fpQYPSzTeaY",
+        "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn"
+      },
+      "parts": [
+        {
+          "type": "step-start",
+          "snapshot": "bd141c5ab345bfdac4b5e69acf9bc19636fb51ac",
+          "id": "prt_ce774a035001ncq3QfW5N21GdV",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "msg_ce77497ed001OP4fpQYPSzTeaY"
+        },
+        {
+          "type": "text",
+          "text": "Now I understand the structure. The `-t`/`--tmux` flag currently just puts `oc` inside a tmux session. The request is to also accept an optional Docker image reference as a parameter to `-t` (or as a separate flag/argument) so that a specific image can be used instead of the default `mheers/opencode-sandbox:latest`.\n\nLet me clarify the intended UX before editing:",
+          "time": {
+            "start": 1773409712532,
+            "end": 1773409712532
+          },
+          "id": "prt_ce774a036001HPIP4zaUzTkGK1",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "msg_ce77497ed001OP4fpQYPSzTeaY"
+        },
+        {
+          "type": "tool",
+          "callID": "tooluse_QiO1IkKOJXyiyFNWuyfP7F",
+          "tool": "question",
+          "state": {
+            "status": "completed",
+            "input": {
+              "questions": [
+                {
+                  "question": "How should the image reference be passed to `oc`?",
+                  "header": "Flag syntax",
+                  "options": [
+                    {
+                      "label": "-t <image> (Recommended)",
+                      "description": "e.g. `oc -t myrepo/myimage:tag` — image is the optional argument immediately after -t"
+                    },
+                    {
+                      "label": "--image <image>",
+                      "description": "e.g. `oc --image myrepo/myimage:tag` — dedicated flag for the image"
+                    },
+                    {
+                      "label": "-i <image>",
+                      "description": "e.g. `oc -i myrepo/myimage:tag` — short flag for image"
+                    }
+                  ]
+                }
+              ]
+            },
+            "output": "User has answered your questions: \"How should the image reference be passed to `oc`?\"=\"-t <image> (Recommended)\". You can now continue with the user's answers in mind.",
+            "title": "Asked 1 question",
+            "metadata": {
+              "answers": [
+                [
+                  "-t <image> (Recommended)"
+                ]
+              ],
+              "truncated": false
+            },
+            "time": {
+              "start": 1773409712495,
+              "end": 1773409740790
+            }
+          },
+          "id": "prt_ce774a9da001TCQdCgzemn97RM",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "msg_ce77497ed001OP4fpQYPSzTeaY"
+        },
+        {
+          "type": "step-finish",
+          "reason": "tool-calls",
+          "snapshot": "bd141c5ab345bfdac4b5e69acf9bc19636fb51ac",
+          "cost": 0,
+          "tokens": {
+            "total": 20591,
+            "input": 2990,
+            "output": 298,
+            "reasoning": 0,
+            "cache": {
+              "read": 17303,
+              "write": 0
+            }
+          },
+          "id": "prt_ce77527f7001JQqFelbMcIGgdR",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "msg_ce77497ed001OP4fpQYPSzTeaY"
+        }
+      ]
+    },
+    {
+      "info": {
+        "role": "assistant",
+        "time": {
+          "created": 1773409740819,
+          "completed": 1773409747290
+        },
+        "parentID": "msg_ce7748014001f5digGrlxCXc0t",
+        "modelID": "claude-sonnet-4.6",
+        "providerID": "github-copilot",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/user/project",
+          "root": "/home/user/project"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 20859,
+          "input": 364,
+          "output": 203,
+          "reasoning": 0,
+          "cache": {
+            "read": 20292,
+            "write": 0
+          }
+        },
+        "finish": "tool-calls",
+        "id": "REDACTED",
+        "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn"
+      },
+      "parts": [
+        {
+          "type": "step-start",
+          "snapshot": "bd141c5ab345bfdac4b5e69acf9bc19636fb51ac",
+          "id": "prt_ce775363b0017FcHjNxvMybhGA",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "REDACTED"
+        },
+        {
+          "type": "text",
+          "text": "So `-t` will optionally take the image as its next argument (e.g. `oc -t myrepo/myimage:tag`). When provided, that image is used instead of the default; the tmux session name can also reflect the image to keep sessions distinct.\n\nHere's the plan:",
+          "time": {
+            "start": 1773409747271,
+            "end": 1773409747271
+          },
+          "id": "prt_ce775363c001pVQOD6ewbk4c8p",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "REDACTED"
+        },
+        {
+          "type": "tool",
+          "callID": "REDACTED",
+          "tool": "todowrite",
+          "state": {
+            "status": "completed",
+            "input": {
+              "todos": [
+                {
+                  "content": "Update -t flag to accept optional image reference argument",
+                  "status": "in_progress",
+                  "priority": "high"
+                },
+                {
+                  "content": "Pass custom image through to docker run / container naming",
+                  "status": "pending",
+                  "priority": "high"
+                },
+                {
+                  "content": "Update header comment to document new syntax",
+                  "status": "pending",
+                  "priority": "low"
+                }
+              ]
+            },
+            "output": "[\n  {\n    \"content\": \"Update -t flag to accept optional image reference argument\",\n    \"status\": \"in_progress\",\n    \"priority\": \"high\"\n  },\n  {\n    \"content\": \"Pass custom image through to docker run / container naming\",\n    \"status\": \"pending\",\n    \"priority\": \"high\"\n  },\n  {\n    \"content\": \"Update header comment to document new syntax\",\n    \"status\": \"pending\",\n    \"priority\": \"low\"\n  }\n]",
+            "title": "3 todos",
+            "metadata": {
+              "todos": [
+                {
+                  "content": "Update -t flag to accept optional image reference argument",
+                  "status": "in_progress",
+                  "priority": "high"
+                },
+                {
+                  "content": "Pass custom image through to docker run / container naming",
+                  "status": "pending",
+                  "priority": "high"
+                },
+                {
+                  "content": "Update header comment to document new syntax",
+                  "status": "pending",
+                  "priority": "low"
+                }
+              ],
+              "truncated": false
+            },
+            "time": {
+              "start": 1773409747270,
+              "end": 1773409747271
+            }
+          },
+          "id": "prt_ce7753b18001c355lcQPD5eeea",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "REDACTED"
+        },
+        {
+          "type": "step-finish",
+          "reason": "tool-calls",
+          "snapshot": "bd141c5ab345bfdac4b5e69acf9bc19636fb51ac",
+          "cost": 0,
+          "tokens": {
+            "total": 20859,
+            "input": 364,
+            "output": 203,
+            "reasoning": 0,
+            "cache": {
+              "read": 20292,
+              "write": 0
+            }
+          },
+          "id": "prt_ce7754148001ZfZ8Z0zY8R5HZ3",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "REDACTED"
+        }
+      ]
+    },
+    {
+      "info": {
+        "role": "assistant",
+        "time": {
+          "created": 1773409747291,
+          "completed": 1773409764450
+        },
+        "parentID": "msg_ce7748014001f5digGrlxCXc0t",
+        "modelID": "claude-sonnet-4.6",
+        "providerID": "github-copilot",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/user/project",
+          "root": "/home/user/project"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 22164,
+          "input": 334,
+          "output": 1175,
+          "reasoning": 0,
+          "cache": {
+            "read": 20655,
+            "write": 0
+          }
+        },
+        "finish": "tool-calls",
+        "id": "REDACTED",
+        "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn"
+      },
+      "parts": [
+        {
+          "type": "step-start",
+          "snapshot": "bd141c5ab345bfdac4b5e69acf9bc19636fb51ac",
+          "id": "prt_ce7754c5f0019myQtq8YkW8Y6m",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "REDACTED"
+        },
+        {
+          "type": "tool",
+          "callID": "tooluse_rav5xgeKZJpEhuuhc0vdP3",
+          "tool": "edit",
+          "state": {
+            "status": "completed",
+            "input": {
+              "filePath": "/home/user/project/oc",
+              "oldString": "#!/bin/bash\n# OpenCode Docker wrapper - run from any directory\n# Symlink this to ~/bin/oc or add to PATH\n#\n# Flags:\n#   -t, --tmux    Run inside a tmux session named after the current directory\n\nUSE_TMUX=false\n\n# Parse flags\nwhile [[ $# -gt 0 ]]; do\n    case \"$1\" in\n        -t|--tmux)\n            USE_TMUX=true\n            shift\n            ;;\n        --)\n            shift\n            break\n            ;;\n        *)\n            break\n            ;;\n    esac\ndone\n\n# If --tmux requested and we're not already inside the target session,\n# re-exec this script (without -t) inside a new/existing tmux session.\nif [ \"${USE_TMUX}\" = true ]; then\n    TMUX_SESSION=$(basename \"$(pwd)\" | tr '.' '_')\n    SELF=\"$(readlink -f \"$0\")\"\n\n    if [ -n \"${TMUX}\" ]; then\n        # Already inside tmux — check if it's the right session\n        CURRENT_SESSION=$(tmux display-message -p '#S')\n        if [ \"${CURRENT_SESSION}\" = \"${TMUX_SESSION}\" ]; then\n            # Already in the target session, just run oc normally\n            exec \"${SELF}\" \"$@\"\n        fi\n    fi\n\n    # Launch or attach to the tmux session, running oc inside it\n    exec tmux new-session -A -s \"${TMUX_SESSION}\" \"${SELF}\" \"$@\"\nfi\n\nIMAGE_NAME=\"mheers/opencode-sandbox:latest\"",
+              "newString": "#!/bin/bash\n# OpenCode Docker wrapper - run from any directory\n# Symlink this to ~/bin/oc or add to PATH\n#\n# Flags:\n#   -t, --tmux [image]  Run inside a tmux session named after the current directory.\n#                       Optionally accepts a Docker image reference to use instead of\n#                       the default image (e.g. `oc -t myrepo/myimage:tag`).\n\nUSE_TMUX=false\nCUSTOM_IMAGE=\"\"\n\n# Parse flags\nwhile [[ $# -gt 0 ]]; do\n    case \"$1\" in\n        -t|--tmux)\n            USE_TMUX=true\n            shift\n            # If the next argument looks like a Docker image reference (not a flag),\n            # consume it as the custom image name.\n            if [[ $# -gt 0 && \"$1\" != -* ]]; then\n                CUSTOM_IMAGE=\"$1\"\n                shift\n            fi\n            ;;\n        --)\n            shift\n            break\n            ;;\n        *)\n            break\n            ;;\n    esac\ndone\n\n# If --tmux requested and we're not already inside the target session,\n# re-exec this script (without -t) inside a new/existing tmux session.\nif [ \"${USE_TMUX}\" = true ]; then\n    TMUX_SESSION=$(basename \"$(pwd)\" | tr '.' '_')\n    SELF=\"$(readlink -f \"$0\")\"\n\n    if [ -n \"${TMUX}\" ]; then\n        # Already inside tmux — check if it's the right session\n        CURRENT_SESSION=$(tmux display-message -p '#S')\n        if [ \"${CURRENT_SESSION}\" = \"${TMUX_SESSION}\" ]; then\n            # Already in the target session, just run oc normally (pass image if set)\n            if [ -n \"${CUSTOM_IMAGE}\" ]; then\n                exec \"${SELF}\" --image \"${CUSTOM_IMAGE}\" \"$@\"\n            else\n                exec \"${SELF}\" \"$@\"\n            fi\n        fi\n    fi\n\n    # Launch or attach to the tmux session, running oc inside it\n    if [ -n \"${CUSTOM_IMAGE}\" ]; then\n        exec tmux new-session -A -s \"${TMUX_SESSION}\" \"${SELF}\" --image \"${CUSTOM_IMAGE}\" \"$@\"\n    else\n        exec tmux new-session -A -s \"${TMUX_SESSION}\" \"${SELF}\" \"$@\"\n    fi\nfi\n\n# Internal flag --image: passes a custom Docker image reference when re-execing\n# from within the tmux branch above. Users may also call it directly.\nif [[ $# -gt 0 && \"$1\" == \"--image\" ]]; then\n    CUSTOM_IMAGE=\"$2\"\n    shift 2\nfi\n\nIMAGE_NAME=\"${CUSTOM_IMAGE:-mheers/opencode-sandbox:latest}\""
+            },
+            "output": "Edit applied successfully.",
+            "title": "oc",
+            "metadata": {
+              "diagnostics": {},
+              "diff": "Index: /home/user/project/oc\n===================================================================\n--- /home/user/project/oc\n+++ /home/user/project/oc\n@@ -2,18 +2,27 @@\n # OpenCode Docker wrapper - run from any directory\n # Symlink this to ~/bin/oc or add to PATH\n #\n # Flags:\n-#   -t, --tmux    Run inside a tmux session named after the current directory\n+#   -t, --tmux [image]  Run inside a tmux session named after the current directory.\n+#                       Optionally accepts a Docker image reference to use instead of\n+#                       the default image (e.g. `oc -t myrepo/myimage:tag`).\n \n USE_TMUX=false\n+CUSTOM_IMAGE=\"\"\n \n # Parse flags\n while [[ $# -gt 0 ]]; do\n     case \"$1\" in\n         -t|--tmux)\n             USE_TMUX=true\n             shift\n+            # If the next argument looks like a Docker image reference (not a flag),\n+            # consume it as the custom image name.\n+            if [[ $# -gt 0 && \"$1\" != -* ]]; then\n+                CUSTOM_IMAGE=\"$1\"\n+                shift\n+            fi\n             ;;\n         --)\n             shift\n             break\n@@ -33,18 +42,33 @@\n     if [ -n \"${TMUX}\" ]; then\n         # Already inside tmux — check if it's the right session\n         CURRENT_SESSION=$(tmux display-message -p '#S')\n         if [ \"${CURRENT_SESSION}\" = \"${TMUX_SESSION}\" ]; then\n-            # Already in the target session, just run oc normally\n-            exec \"${SELF}\" \"$@\"\n+            # Already in the target session, just run oc normally (pass image if set)\n+            if [ -n \"${CUSTOM_IMAGE}\" ]; then\n+                exec \"${SELF}\" --image \"${CUSTOM_IMAGE}\" \"$@\"\n+            else\n+                exec \"${SELF}\" \"$@\"\n+            fi\n         fi\n     fi\n \n     # Launch or attach to the tmux session, running oc inside it\n-    exec tmux new-session -A -s \"${TMUX_SESSION}\" \"${SELF}\" \"$@\"\n+    if [ -n \"${CUSTOM_IMAGE}\" ]; then\n+        exec tmux new-session -A -s \"${TMUX_SESSION}\" \"${SELF}\" --image \"${CUSTOM_IMAGE}\" \"$@\"\n+    else\n+        exec tmux new-session -A -s \"${TMUX_SESSION}\" \"${SELF}\" \"$@\"\n+    fi\n fi\n \n-IMAGE_NAME=\"mheers/opencode-sandbox:latest\"\n+# Internal flag --image: passes a custom Docker image reference when re-execing\n+# from within the tmux branch above. Users may also call it directly.\n+if [[ $# -gt 0 && \"$1\" == \"--image\" ]]; then\n+    CUSTOM_IMAGE=\"$2\"\n+    shift 2\n+fi\n+\n+IMAGE_NAME=\"${CUSTOM_IMAGE:-mheers/opencode-sandbox:latest}\"\n # Generate unique container name based on current directory\n DIR_HASH=$(echo \"$(pwd)\" | md5sum | cut -c1-8)\n CONTAINER_NAME=\"opencode-${DIR_HASH}\"\n LOCAL_VOLUME=\"opencode-local-${DIR_HASH}\"\n",
+              "filediff": {
+                "file": "/home/user/project/oc",
+                "before": "#!/bin/bash\n# OpenCode Docker wrapper - run from any directory\n# Symlink this to ~/bin/oc or add to PATH\n#\n# Flags:\n#   -t, --tmux    Run inside a tmux session named after the current directory\n\nUSE_TMUX=false\n\n# Parse flags\nwhile [[ $# -gt 0 ]]; do\n    case \"$1\" in\n        -t|--tmux)\n            USE_TMUX=true\n            shift\n            ;;\n        --)\n            shift\n            break\n            ;;\n        *)\n            break\n            ;;\n    esac\ndone\n\n# If --tmux requested and we're not already inside the target session,\n# re-exec this script (without -t) inside a new/existing tmux session.\nif [ \"${USE_TMUX}\" = true ]; then\n    TMUX_SESSION=$(basename \"$(pwd)\" | tr '.' '_')\n    SELF=\"$(readlink -f \"$0\")\"\n\n    if [ -n \"${TMUX}\" ]; then\n        # Already inside tmux — check if it's the right session\n        CURRENT_SESSION=$(tmux display-message -p '#S')\n        if [ \"${CURRENT_SESSION}\" = \"${TMUX_SESSION}\" ]; then\n            # Already in the target session, just run oc normally\n            exec \"${SELF}\" \"$@\"\n        fi\n    fi\n\n    # Launch or attach to the tmux session, running oc inside it\n    exec tmux new-session -A -s \"${TMUX_SESSION}\" \"${SELF}\" \"$@\"\nfi\n\nIMAGE_NAME=\"mheers/opencode-sandbox:latest\"\n# Generate unique container name based on current directory\nDIR_HASH=$(echo \"$(pwd)\" | md5sum | cut -c1-8)\nCONTAINER_NAME=\"opencode-${DIR_HASH}\"\nLOCAL_VOLUME=\"opencode-local-${DIR_HASH}\"\nUSER_ID=$(id -u)\nGROUP_ID=$(id -g)\nRUNTIME_DIR=\"/run/user/${USER_ID}\"\nGPG_SOCKET_DIR=\"${RUNTIME_DIR}/gnupg\"\nGPG_SOCKET_MOUNT=\"\"\nGPG_TTY_ENV=\"\"\nSSH_AUTH_MOUNT=\"\"\nSSH_AUTH_ENV=\"\"\nDOCKER_GID=\"\"\nDOCKER_GROUP_ADD=\"\"\nKVM_GID=\"\"\nKVM_GROUP_ADD=\"\"\nKVM_DEVICE=\"\"\nGITCONFIG_MOUNT=\"\"\nGITCONFIG_PATH=\"/home/user/.gitconfig.host\"\nDBUS_MOUNT=\"\"\nDBUS_ENV=\"\"\nPIPEWIRE_MOUNT=\"\"\nPIPEWIRE_ENV=\"\"\n\nif [ -S \"${GPG_SOCKET_DIR}/S.gpg-agent\" ]; then\n    GPG_SOCKET_MOUNT=\"-v ${GPG_SOCKET_DIR}:${GPG_SOCKET_DIR} -v ${GPG_SOCKET_DIR}/S.gpg-agent:/home/user/.gnupg/S.gpg-agent\"\n    GPG_TTY_ENV=\"-e GPG_TTY=$(tty)\"\nfi\n\nif [ -S \"${SSH_AUTH_SOCK}\" ]; then\n    SSH_AUTH_MOUNT=\"-v ${SSH_AUTH_SOCK}:/ssh-agent\"\n    SSH_AUTH_ENV=\"-e SSH_AUTH_SOCK=/ssh-agent\"\nfi\n\nif [ -z \"${SSH_AUTH_SOCK}\" ] && [ -S \"${GPG_SOCKET_DIR}/S.gpg-agent.ssh\" ]; then\n    if [ -z \"${GPG_SOCKET_MOUNT}\" ]; then\n        GPG_SOCKET_MOUNT=\"-v ${GPG_SOCKET_DIR}:${GPG_SOCKET_DIR}\"\n    fi\n    SSH_AUTH_ENV=\"-e SSH_AUTH_SOCK=${GPG_SOCKET_DIR}/S.gpg-agent.ssh\"\nfi\n\nif [ -S /var/run/docker.sock ]; then\n    DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)\n    DOCKER_GROUP_ADD=\"--group-add ${DOCKER_GID}\"\nfi\n\nif [ -e /dev/kvm ]; then\n    KVM_GID=$(stat -c '%g' /dev/kvm)\n    KVM_GROUP_ADD=\"--group-add ${KVM_GID}\"\n    KVM_DEVICE=\"--device /dev/kvm\"\nfi\n\nif [ -f \"$(pwd)/.gitconfig.oc\" ]; then\n    GITCONFIG_MOUNT=\"-v $(pwd)/.gitconfig.oc:/home/user/.gitconfig:ro\"\n    GITCONFIG_PATH=\"/home/user/.gitconfig\"\nfi\n\n# Forward host D-Bus session so libnotify (notify-send) works inside the container\nif [ -n \"${DBUS_SESSION_BUS_ADDRESS}\" ]; then\n    DBUS_SOCKET=$(echo \"${DBUS_SESSION_BUS_ADDRESS}\" | sed 's|unix:path=||')\n    if [ -S \"${DBUS_SOCKET}\" ]; then\n        DBUS_MOUNT=\"-v ${DBUS_SOCKET}:${DBUS_SOCKET}\"\n        DBUS_ENV=\"-e DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS}\"\n    fi\nfi\n\n# Forward host PipeWire-PulseAudio socket so paplay can play sounds inside the container\n# pipewire-pulse creates a PulseAudio-compatible socket at pulse/native;\n# paplay cannot use the native pipewire-0 socket directly.\nPULSE_NATIVE_SOCKET=\"${RUNTIME_DIR}/pulse/native\"\nPULSE_NATIVE_DIR=\"${RUNTIME_DIR}/pulse\"\nif [ -S \"${PULSE_NATIVE_SOCKET}\" ]; then\n    PIPEWIRE_MOUNT=\"-v ${PULSE_NATIVE_DIR}:${PULSE_NATIVE_DIR}\"\n    PIPEWIRE_ENV=\"-e PULSE_SERVER=unix:${PULSE_NATIVE_SOCKET}\"\nelif [ -S \"${RUNTIME_DIR}/pipewire-0\" ]; then\n    # Fallback: mount the native PipeWire socket (less compatible with paplay)\n    PIPEWIRE_MOUNT=\"-v ${RUNTIME_DIR}/pipewire-0:${RUNTIME_DIR}/pipewire-0\"\n    PIPEWIRE_ENV=\"-e PULSE_SERVER=unix:${RUNTIME_DIR}/pipewire-0\"\nfi\n\n\n# Check if container already exists and is running\nif docker ps -q -f name=\"^${CONTAINER_NAME}$\" | grep -q .; then\n    echo \"Container ${CONTAINER_NAME} already running, attaching...\"\n    docker exec -it \"${CONTAINER_NAME}\" /usr/bin/zsh -i \"$@\"\n    exit $?\nfi\n\n# Check if container exists but is stopped\nif docker ps -aq -f name=\"^${CONTAINER_NAME}$\" | grep -q .; then\n    echo \"Starting existing container ${CONTAINER_NAME}...\"\n    docker start \"${CONTAINER_NAME}\"\n    docker exec -it \"${CONTAINER_NAME}\" /usr/bin/zsh -i \"$@\"\n    exit $?\nfi\n\ndocker run -it --rm \\\n    --name \"${CONTAINER_NAME}\" \\\n    --network host \\\n    --user \"${USER_ID}:${GROUP_ID}\" \\\n    -e HOME=/home/user \\\n    -e PATH=/home/user/.opencode/bin:/home/user/.bun/bin:/home/user/.ocx/bin:/home/user/bin:/home/user/.local/bin:/home/user/go/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin \\\n    -v \"$(pwd)\":/home/user/project \\\n    -v \"${HOME}/.opencode:/home/user/.opencode\" \\\n    -v \"${HOME}/.config/opencode:/home/user/.config/opencode\" \\\n    -v \"${LOCAL_VOLUME}:/home/user/.local\" \\\n    -v \"${HOME}/.local/share/opencode:/home/user/.local/share/opencode\" \\\n    --tmpfs /home/user/.local/state:uid=\"${USER_ID}\",gid=\"${GROUP_ID}\",mode=700 \\\n    -v \"${HOME}/.local/state/opencode:/home/user/.local/state/opencode\" \\\n    -e AGENT_BROWSER_SOCKET_DIR=/home/user/.local/state/agent-browser \\\n    -e AGENT_BROWSER_HOME=/opt/agent-browser \\\n    -v \"${HOME}/.gitconfig:/home/user/.gitconfig.host:ro\" \\\n    ${GITCONFIG_MOUNT} \\\n    -v \"${HOME}/.gnupg:/home/user/.gnupg\" \\\n    -v \"${HOME}/.ssh:/home/user/.ssh:ro\" \\\n    -v \"/var/run/docker.sock:/var/run/docker.sock\" \\\n    ${GPG_SOCKET_MOUNT} \\\n    ${SSH_AUTH_MOUNT} \\\n    --tmpfs /home/user/.cache:uid=\"${USER_ID}\",gid=\"${GROUP_ID}\",mode=700 \\\n    -v \"${HOME}/.cache/ms-playwright:/home/user/.cache/ms-playwright\" \\\n    -v \"${HOME}/.cache/opencode:/home/user/.cache/opencode\" \\\n    -v \"${HOME}/.bun/install/cache:/home/user/.bun/install/cache\" \\\n    -w /home/user/project \\\n    ${DOCKER_GROUP_ADD} \\\n    ${KVM_GROUP_ADD} \\\n    ${KVM_DEVICE} \\\n    -e GIT_CONFIG_GLOBAL=\"${GITCONFIG_PATH}\" \\\n    --entrypoint /usr/local/bin/entrypoint.sh \\\n    ${GPG_TTY_ENV} \\\n    ${SSH_AUTH_ENV} \\\n    ${DBUS_MOUNT} \\\n    ${DBUS_ENV} \\\n    ${PIPEWIRE_MOUNT} \\\n    ${PIPEWIRE_ENV} \\\n    \"${IMAGE_NAME}\" /usr/bin/zsh -i \"$@\"\n",
+                "after": "#!/bin/bash\n# OpenCode Docker wrapper - run from any directory\n# Symlink this to ~/bin/oc or add to PATH\n#\n# Flags:\n#   -t, --tmux [image]  Run inside a tmux session named after the current directory.\n#                       Optionally accepts a Docker image reference to use instead of\n#                       the default image (e.g. `oc -t myrepo/myimage:tag`).\n\nUSE_TMUX=false\nCUSTOM_IMAGE=\"\"\n\n# Parse flags\nwhile [[ $# -gt 0 ]]; do\n    case \"$1\" in\n        -t|--tmux)\n            USE_TMUX=true\n            shift\n            # If the next argument looks like a Docker image reference (not a flag),\n            # consume it as the custom image name.\n            if [[ $# -gt 0 && \"$1\" != -* ]]; then\n                CUSTOM_IMAGE=\"$1\"\n                shift\n            fi\n            ;;\n        --)\n            shift\n            break\n            ;;\n        *)\n            break\n            ;;\n    esac\ndone\n\n# If --tmux requested and we're not already inside the target session,\n# re-exec this script (without -t) inside a new/existing tmux session.\nif [ \"${USE_TMUX}\" = true ]; then\n    TMUX_SESSION=$(basename \"$(pwd)\" | tr '.' '_')\n    SELF=\"$(readlink -f \"$0\")\"\n\n    if [ -n \"${TMUX}\" ]; then\n        # Already inside tmux — check if it's the right session\n        CURRENT_SESSION=$(tmux display-message -p '#S')\n        if [ \"${CURRENT_SESSION}\" = \"${TMUX_SESSION}\" ]; then\n            # Already in the target session, just run oc normally (pass image if set)\n            if [ -n \"${CUSTOM_IMAGE}\" ]; then\n                exec \"${SELF}\" --image \"${CUSTOM_IMAGE}\" \"$@\"\n            else\n                exec \"${SELF}\" \"$@\"\n            fi\n        fi\n    fi\n\n    # Launch or attach to the tmux session, running oc inside it\n    if [ -n \"${CUSTOM_IMAGE}\" ]; then\n        exec tmux new-session -A -s \"${TMUX_SESSION}\" \"${SELF}\" --image \"${CUSTOM_IMAGE}\" \"$@\"\n    else\n        exec tmux new-session -A -s \"${TMUX_SESSION}\" \"${SELF}\" \"$@\"\n    fi\nfi\n\n# Internal flag --image: passes a custom Docker image reference when re-execing\n# from within the tmux branch above. Users may also call it directly.\nif [[ $# -gt 0 && \"$1\" == \"--image\" ]]; then\n    CUSTOM_IMAGE=\"$2\"\n    shift 2\nfi\n\nIMAGE_NAME=\"${CUSTOM_IMAGE:-mheers/opencode-sandbox:latest}\"\n# Generate unique container name based on current directory\nDIR_HASH=$(echo \"$(pwd)\" | md5sum | cut -c1-8)\nCONTAINER_NAME=\"opencode-${DIR_HASH}\"\nLOCAL_VOLUME=\"opencode-local-${DIR_HASH}\"\nUSER_ID=$(id -u)\nGROUP_ID=$(id -g)\nRUNTIME_DIR=\"/run/user/${USER_ID}\"\nGPG_SOCKET_DIR=\"${RUNTIME_DIR}/gnupg\"\nGPG_SOCKET_MOUNT=\"\"\nGPG_TTY_ENV=\"\"\nSSH_AUTH_MOUNT=\"\"\nSSH_AUTH_ENV=\"\"\nDOCKER_GID=\"\"\nDOCKER_GROUP_ADD=\"\"\nKVM_GID=\"\"\nKVM_GROUP_ADD=\"\"\nKVM_DEVICE=\"\"\nGITCONFIG_MOUNT=\"\"\nGITCONFIG_PATH=\"/home/user/.gitconfig.host\"\nDBUS_MOUNT=\"\"\nDBUS_ENV=\"\"\nPIPEWIRE_MOUNT=\"\"\nPIPEWIRE_ENV=\"\"\n\nif [ -S \"${GPG_SOCKET_DIR}/S.gpg-agent\" ]; then\n    GPG_SOCKET_MOUNT=\"-v ${GPG_SOCKET_DIR}:${GPG_SOCKET_DIR} -v ${GPG_SOCKET_DIR}/S.gpg-agent:/home/user/.gnupg/S.gpg-agent\"\n    GPG_TTY_ENV=\"-e GPG_TTY=$(tty)\"\nfi\n\nif [ -S \"${SSH_AUTH_SOCK}\" ]; then\n    SSH_AUTH_MOUNT=\"-v ${SSH_AUTH_SOCK}:/ssh-agent\"\n    SSH_AUTH_ENV=\"-e SSH_AUTH_SOCK=/ssh-agent\"\nfi\n\nif [ -z \"${SSH_AUTH_SOCK}\" ] && [ -S \"${GPG_SOCKET_DIR}/S.gpg-agent.ssh\" ]; then\n    if [ -z \"${GPG_SOCKET_MOUNT}\" ]; then\n        GPG_SOCKET_MOUNT=\"-v ${GPG_SOCKET_DIR}:${GPG_SOCKET_DIR}\"\n    fi\n    SSH_AUTH_ENV=\"-e SSH_AUTH_SOCK=${GPG_SOCKET_DIR}/S.gpg-agent.ssh\"\nfi\n\nif [ -S /var/run/docker.sock ]; then\n    DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)\n    DOCKER_GROUP_ADD=\"--group-add ${DOCKER_GID}\"\nfi\n\nif [ -e /dev/kvm ]; then\n    KVM_GID=$(stat -c '%g' /dev/kvm)\n    KVM_GROUP_ADD=\"--group-add ${KVM_GID}\"\n    KVM_DEVICE=\"--device /dev/kvm\"\nfi\n\nif [ -f \"$(pwd)/.gitconfig.oc\" ]; then\n    GITCONFIG_MOUNT=\"-v $(pwd)/.gitconfig.oc:/home/user/.gitconfig:ro\"\n    GITCONFIG_PATH=\"/home/user/.gitconfig\"\nfi\n\n# Forward host D-Bus session so libnotify (notify-send) works inside the container\nif [ -n \"${DBUS_SESSION_BUS_ADDRESS}\" ]; then\n    DBUS_SOCKET=$(echo \"${DBUS_SESSION_BUS_ADDRESS}\" | sed 's|unix:path=||')\n    if [ -S \"${DBUS_SOCKET}\" ]; then\n        DBUS_MOUNT=\"-v ${DBUS_SOCKET}:${DBUS_SOCKET}\"\n        DBUS_ENV=\"-e DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS}\"\n    fi\nfi\n\n# Forward host PipeWire-PulseAudio socket so paplay can play sounds inside the container\n# pipewire-pulse creates a PulseAudio-compatible socket at pulse/native;\n# paplay cannot use the native pipewire-0 socket directly.\nPULSE_NATIVE_SOCKET=\"${RUNTIME_DIR}/pulse/native\"\nPULSE_NATIVE_DIR=\"${RUNTIME_DIR}/pulse\"\nif [ -S \"${PULSE_NATIVE_SOCKET}\" ]; then\n    PIPEWIRE_MOUNT=\"-v ${PULSE_NATIVE_DIR}:${PULSE_NATIVE_DIR}\"\n    PIPEWIRE_ENV=\"-e PULSE_SERVER=unix:${PULSE_NATIVE_SOCKET}\"\nelif [ -S \"${RUNTIME_DIR}/pipewire-0\" ]; then\n    # Fallback: mount the native PipeWire socket (less compatible with paplay)\n    PIPEWIRE_MOUNT=\"-v ${RUNTIME_DIR}/pipewire-0:${RUNTIME_DIR}/pipewire-0\"\n    PIPEWIRE_ENV=\"-e PULSE_SERVER=unix:${RUNTIME_DIR}/pipewire-0\"\nfi\n\n\n# Check if container already exists and is running\nif docker ps -q -f name=\"^${CONTAINER_NAME}$\" | grep -q .; then\n    echo \"Container ${CONTAINER_NAME} already running, attaching...\"\n    docker exec -it \"${CONTAINER_NAME}\" /usr/bin/zsh -i \"$@\"\n    exit $?\nfi\n\n# Check if container exists but is stopped\nif docker ps -aq -f name=\"^${CONTAINER_NAME}$\" | grep -q .; then\n    echo \"Starting existing container ${CONTAINER_NAME}...\"\n    docker start \"${CONTAINER_NAME}\"\n    docker exec -it \"${CONTAINER_NAME}\" /usr/bin/zsh -i \"$@\"\n    exit $?\nfi\n\ndocker run -it --rm \\\n    --name \"${CONTAINER_NAME}\" \\\n    --network host \\\n    --user \"${USER_ID}:${GROUP_ID}\" \\\n    -e HOME=/home/user \\\n    -e PATH=/home/user/.opencode/bin:/home/user/.bun/bin:/home/user/.ocx/bin:/home/user/bin:/home/user/.local/bin:/home/user/go/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin \\\n    -v \"$(pwd)\":/home/user/project \\\n    -v \"${HOME}/.opencode:/home/user/.opencode\" \\\n    -v \"${HOME}/.config/opencode:/home/user/.config/opencode\" \\\n    -v \"${LOCAL_VOLUME}:/home/user/.local\" \\\n    -v \"${HOME}/.local/share/opencode:/home/user/.local/share/opencode\" \\\n    --tmpfs /home/user/.local/state:uid=\"${USER_ID}\",gid=\"${GROUP_ID}\",mode=700 \\\n    -v \"${HOME}/.local/state/opencode:/home/user/.local/state/opencode\" \\\n    -e AGENT_BROWSER_SOCKET_DIR=/home/user/.local/state/agent-browser \\\n    -e AGENT_BROWSER_HOME=/opt/agent-browser \\\n    -v \"${HOME}/.gitconfig:/home/user/.gitconfig.host:ro\" \\\n    ${GITCONFIG_MOUNT} \\\n    -v \"${HOME}/.gnupg:/home/user/.gnupg\" \\\n    -v \"${HOME}/.ssh:/home/user/.ssh:ro\" \\\n    -v \"/var/run/docker.sock:/var/run/docker.sock\" \\\n    ${GPG_SOCKET_MOUNT} \\\n    ${SSH_AUTH_MOUNT} \\\n    --tmpfs /home/user/.cache:uid=\"${USER_ID}\",gid=\"${GROUP_ID}\",mode=700 \\\n    -v \"${HOME}/.cache/ms-playwright:/home/user/.cache/ms-playwright\" \\\n    -v \"${HOME}/.cache/opencode:/home/user/.cache/opencode\" \\\n    -v \"${HOME}/.bun/install/cache:/home/user/.bun/install/cache\" \\\n    -w /home/user/project \\\n    ${DOCKER_GROUP_ADD} \\\n    ${KVM_GROUP_ADD} \\\n    ${KVM_DEVICE} \\\n    -e GIT_CONFIG_GLOBAL=\"${GITCONFIG_PATH}\" \\\n    --entrypoint /usr/local/bin/entrypoint.sh \\\n    ${GPG_TTY_ENV} \\\n    ${SSH_AUTH_ENV} \\\n    ${DBUS_MOUNT} \\\n    ${DBUS_ENV} \\\n    ${PIPEWIRE_MOUNT} \\\n    ${PIPEWIRE_ENV} \\\n    \"${IMAGE_NAME}\" /usr/bin/zsh -i \"$@\"\n",
+                "additions": 29,
+                "deletions": 5
+              },
+              "truncated": false
+            },
+            "time": {
+              "start": 1773409764396,
+              "end": 1773409764409
+            }
+          },
+          "id": "prt_ce7754c60001vCgkFKo3PK3bv4",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "REDACTED"
+        },
+        {
+          "type": "step-finish",
+          "reason": "tool-calls",
+          "snapshot": "d4973ebeb706f5cf9588bd8d36cbcfc89e5e5c61",
+          "cost": 0,
+          "tokens": {
+            "total": 22164,
+            "input": 334,
+            "output": 1175,
+            "reasoning": 0,
+            "cache": {
+              "read": 20655,
+              "write": 0
+            }
+          },
+          "id": "prt_ce775843a0018zw8aBA7GM6v0o",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "REDACTED"
+        },
+        {
+          "type": "patch",
+          "hash": "bd141c5ab345bfdac4b5e69acf9bc19636fb51ac",
+          "files": [
+            "/home/user/project/oc"
+          ],
+          "id": "prt_ce775845c001enDPzL3ovjdD3n",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "REDACTED"
+        }
+      ]
+    },
+    {
+      "info": {
+        "role": "assistant",
+        "time": {
+          "created": 1773409764458,
+          "completed": 1773409767407
+        },
+        "parentID": "msg_ce7748014001f5digGrlxCXc0t",
+        "modelID": "claude-sonnet-4.6",
+        "providerID": "github-copilot",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/user/project",
+          "root": "/home/user/project"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 22312,
+          "input": 1191,
+          "output": 133,
+          "reasoning": 0,
+          "cache": {
+            "read": 20988,
+            "write": 0
+          }
+        },
+        "finish": "tool-calls",
+        "id": "msg_ce775846a001JbI4qKtewajK0Y",
+        "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn"
+      },
+      "parts": [
+        {
+          "type": "step-start",
+          "snapshot": "d4973ebeb706f5cf9588bd8d36cbcfc89e5e5c61",
+          "id": "prt_ce7758e37001wFetkZ0L5e4Swr",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "msg_ce775846a001JbI4qKtewajK0Y"
+        },
+        {
+          "type": "tool",
+          "callID": "REDACTED",
+          "tool": "todowrite",
+          "state": {
+            "status": "completed",
+            "input": {
+              "todos": [
+                {
+                  "content": "Update -t flag to accept optional image reference argument",
+                  "priority": "high",
+                  "status": "completed"
+                },
+                {
+                  "content": "Pass custom image through to docker run / container naming",
+                  "priority": "high",
+                  "status": "completed"
+                },
+                {
+                  "content": "Update header comment to document new syntax",
+                  "priority": "low",
+                  "status": "completed"
+                }
+              ]
+            },
+            "output": "[\n  {\n    \"content\": \"Update -t flag to accept optional image reference argument\",\n    \"priority\": \"high\",\n    \"status\": \"completed\"\n  },\n  {\n    \"content\": \"Pass custom image through to docker run / container naming\",\n    \"priority\": \"high\",\n    \"status\": \"completed\"\n  },\n  {\n    \"content\": \"Update header comment to document new syntax\",\n    \"priority\": \"low\",\n    \"status\": \"completed\"\n  }\n]",
+            "title": "0 todos",
+            "metadata": {
+              "todos": [
+                {
+                  "content": "Update -t flag to accept optional image reference argument",
+                  "priority": "high",
+                  "status": "completed"
+                },
+                {
+                  "content": "Pass custom image through to docker run / container naming",
+                  "priority": "high",
+                  "status": "completed"
+                },
+                {
+                  "content": "Update header comment to document new syntax",
+                  "priority": "low",
+                  "status": "completed"
+                }
+              ],
+              "truncated": false
+            },
+            "time": {
+              "start": 1773409767390,
+              "end": 1773409767391
+            }
+          },
+          "id": "prt_ce7758e380019IAcaBOL7N2JBp",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "msg_ce775846a001JbI4qKtewajK0Y"
+        },
+        {
+          "type": "step-finish",
+          "reason": "tool-calls",
+          "snapshot": "d4973ebeb706f5cf9588bd8d36cbcfc89e5e5c61",
+          "cost": 0,
+          "tokens": {
+            "total": 22312,
+            "input": 1191,
+            "output": 133,
+            "reasoning": 0,
+            "cache": {
+              "read": 20988,
+              "write": 0
+            }
+          },
+          "id": "prt_ce7758fdf001ebViLo5rw2rf8g",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "msg_ce775846a001JbI4qKtewajK0Y"
+        }
+      ]
+    },
+    {
+      "info": {
+        "role": "assistant",
+        "time": {
+          "created": 1773409767408,
+          "completed": 1773409770294
+        },
+        "parentID": "msg_ce7748014001f5digGrlxCXc0t",
+        "modelID": "claude-sonnet-4.6",
+        "providerID": "github-copilot",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/user/project",
+          "root": "/home/user/project"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 22515,
+          "input": 262,
+          "output": 75,
+          "reasoning": 0,
+          "cache": {
+            "read": 22178,
+            "write": 0
+          }
+        },
+        "finish": "tool-calls",
+        "id": "msg_ce7758ff0001bHfzfTgfTTBtYE",
+        "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn"
+      },
+      "parts": [
+        {
+          "type": "step-start",
+          "snapshot": "d4973ebeb706f5cf9588bd8d36cbcfc89e5e5c61",
+          "id": "prt_ce77598600019jM0xgvQuCSmmv",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "msg_ce7758ff0001bHfzfTgfTTBtYE"
+        },
+        {
+          "type": "text",
+          "text": "Let me verify the final result looks correct end-to-end:",
+          "time": {
+            "start": 1773409770279,
+            "end": 1773409770279
+          },
+          "id": "prt_ce775986100156uKNvJQEzu8HN",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "msg_ce7758ff0001bHfzfTgfTTBtYE"
+        },
+        {
+          "type": "tool",
+          "callID": "REDACTED",
+          "tool": "read",
+          "state": {
+            "status": "completed",
+            "input": {
+              "filePath": "/home/user/project/oc"
+            },
+            "output": "<path>/home/user/project/oc</path>\n<type>file</type>\n<content>1: #!/bin/bash\n2: # OpenCode Docker wrapper - run from any directory\n3: # Symlink this to ~/bin/oc or add to PATH\n4: #\n5: # Flags:\n6: #   -t, --tmux [image]  Run inside a tmux session named after the current directory.\n7: #                       Optionally accepts a Docker image reference to use instead of\n8: #                       the default image (e.g. `oc -t myrepo/myimage:tag`).\n9: \n10: USE_TMUX=false\n11: CUSTOM_IMAGE=\"\"\n12: \n13: # Parse flags\n14: while [[ $# -gt 0 ]]; do\n15:     case \"$1\" in\n16:         -t|--tmux)\n17:             USE_TMUX=true\n18:             shift\n19:             # If the next argument looks like a Docker image reference (not a flag),\n20:             # consume it as the custom image name.\n21:             if [[ $# -gt 0 && \"$1\" != -* ]]; then\n22:                 CUSTOM_IMAGE=\"$1\"\n23:                 shift\n24:             fi\n25:             ;;\n26:         --)\n27:             shift\n28:             break\n29:             ;;\n30:         *)\n31:             break\n32:             ;;\n33:     esac\n34: done\n35: \n36: # If --tmux requested and we're not already inside the target session,\n37: # re-exec this script (without -t) inside a new/existing tmux session.\n38: if [ \"${USE_TMUX}\" = true ]; then\n39:     TMUX_SESSION=$(basename \"$(pwd)\" | tr '.' '_')\n40:     SELF=\"$(readlink -f \"$0\")\"\n41: \n42:     if [ -n \"${TMUX}\" ]; then\n43:         # Already inside tmux — check if it's the right session\n44:         CURRENT_SESSION=$(tmux display-message -p '#S')\n45:         if [ \"${CURRENT_SESSION}\" = \"${TMUX_SESSION}\" ]; then\n46:             # Already in the target session, just run oc normally (pass image if set)\n47:             if [ -n \"${CUSTOM_IMAGE}\" ]; then\n48:                 exec \"${SELF}\" --image \"${CUSTOM_IMAGE}\" \"$@\"\n49:             else\n50:                 exec \"${SELF}\" \"$@\"\n51:             fi\n52:         fi\n53:     fi\n54: \n55:     # Launch or attach to the tmux session, running oc inside it\n56:     if [ -n \"${CUSTOM_IMAGE}\" ]; then\n57:         exec tmux new-session -A -s \"${TMUX_SESSION}\" \"${SELF}\" --image \"${CUSTOM_IMAGE}\" \"$@\"\n58:     else\n59:         exec tmux new-session -A -s \"${TMUX_SESSION}\" \"${SELF}\" \"$@\"\n60:     fi\n61: fi\n62: \n63: # Internal flag --image: passes a custom Docker image reference when re-execing\n64: # from within the tmux branch above. Users may also call it directly.\n65: if [[ $# -gt 0 && \"$1\" == \"--image\" ]]; then\n66:     CUSTOM_IMAGE=\"$2\"\n67:     shift 2\n68: fi\n69: \n70: IMAGE_NAME=\"${CUSTOM_IMAGE:-mheers/opencode-sandbox:latest}\"\n71: # Generate unique container name based on current directory\n72: DIR_HASH=$(echo \"$(pwd)\" | md5sum | cut -c1-8)\n73: CONTAINER_NAME=\"opencode-${DIR_HASH}\"\n74: LOCAL_VOLUME=\"opencode-local-${DIR_HASH}\"\n75: USER_ID=$(id -u)\n76: GROUP_ID=$(id -g)\n77: RUNTIME_DIR=\"/run/user/${USER_ID}\"\n78: GPG_SOCKET_DIR=\"${RUNTIME_DIR}/gnupg\"\n79: GPG_SOCKET_MOUNT=\"\"\n80: GPG_TTY_ENV=\"\"\n81: SSH_AUTH_MOUNT=\"\"\n82: SSH_AUTH_ENV=\"\"\n83: DOCKER_GID=\"\"\n84: DOCKER_GROUP_ADD=\"\"\n85: KVM_GID=\"\"\n86: KVM_GROUP_ADD=\"\"\n87: KVM_DEVICE=\"\"\n88: GITCONFIG_MOUNT=\"\"\n89: GITCONFIG_PATH=\"/home/user/.gitconfig.host\"\n90: DBUS_MOUNT=\"\"\n91: DBUS_ENV=\"\"\n92: PIPEWIRE_MOUNT=\"\"\n93: PIPEWIRE_ENV=\"\"\n94: \n95: if [ -S \"${GPG_SOCKET_DIR}/S.gpg-agent\" ]; then\n96:     GPG_SOCKET_MOUNT=\"-v ${GPG_SOCKET_DIR}:${GPG_SOCKET_DIR} -v ${GPG_SOCKET_DIR}/S.gpg-agent:/home/user/.gnupg/S.gpg-agent\"\n97:     GPG_TTY_ENV=\"-e GPG_TTY=$(tty)\"\n98: fi\n99: \n100: if [ -S \"${SSH_AUTH_SOCK}\" ]; then\n101:     SSH_AUTH_MOUNT=\"-v ${SSH_AUTH_SOCK}:/ssh-agent\"\n102:     SSH_AUTH_ENV=\"-e SSH_AUTH_SOCK=/ssh-agent\"\n103: fi\n104: \n105: if [ -z \"${SSH_AUTH_SOCK}\" ] && [ -S \"${GPG_SOCKET_DIR}/S.gpg-agent.ssh\" ]; then\n106:     if [ -z \"${GPG_SOCKET_MOUNT}\" ]; then\n107:         GPG_SOCKET_MOUNT=\"-v ${GPG_SOCKET_DIR}:${GPG_SOCKET_DIR}\"\n108:     fi\n109:     SSH_AUTH_ENV=\"-e SSH_AUTH_SOCK=${GPG_SOCKET_DIR}/S.gpg-agent.ssh\"\n110: fi\n111: \n112: if [ -S /var/run/docker.sock ]; then\n113:     DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)\n114:     DOCKER_GROUP_ADD=\"--group-add ${DOCKER_GID}\"\n115: fi\n116: \n117: if [ -e /dev/kvm ]; then\n118:     KVM_GID=$(stat -c '%g' /dev/kvm)\n119:     KVM_GROUP_ADD=\"--group-add ${KVM_GID}\"\n120:     KVM_DEVICE=\"--device /dev/kvm\"\n121: fi\n122: \n123: if [ -f \"$(pwd)/.gitconfig.oc\" ]; then\n124:     GITCONFIG_MOUNT=\"-v $(pwd)/.gitconfig.oc:/home/user/.gitconfig:ro\"\n125:     GITCONFIG_PATH=\"/home/user/.gitconfig\"\n126: fi\n127: \n128: # Forward host D-Bus session so libnotify (notify-send) works inside the container\n129: if [ -n \"${DBUS_SESSION_BUS_ADDRESS}\" ]; then\n130:     DBUS_SOCKET=$(echo \"${DBUS_SESSION_BUS_ADDRESS}\" | sed 's|unix:path=||')\n131:     if [ -S \"${DBUS_SOCKET}\" ]; then\n132:         DBUS_MOUNT=\"-v ${DBUS_SOCKET}:${DBUS_SOCKET}\"\n133:         DBUS_ENV=\"-e DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS}\"\n134:     fi\n135: fi\n136: \n137: # Forward host PipeWire-PulseAudio socket so paplay can play sounds inside the container\n138: # pipewire-pulse creates a PulseAudio-compatible socket at pulse/native;\n139: # paplay cannot use the native pipewire-0 socket directly.\n140: PULSE_NATIVE_SOCKET=\"${RUNTIME_DIR}/pulse/native\"\n141: PULSE_NATIVE_DIR=\"${RUNTIME_DIR}/pulse\"\n142: if [ -S \"${PULSE_NATIVE_SOCKET}\" ]; then\n143:     PIPEWIRE_MOUNT=\"-v ${PULSE_NATIVE_DIR}:${PULSE_NATIVE_DIR}\"\n144:     PIPEWIRE_ENV=\"-e PULSE_SERVER=unix:${PULSE_NATIVE_SOCKET}\"\n145: elif [ -S \"${RUNTIME_DIR}/pipewire-0\" ]; then\n146:     # Fallback: mount the native PipeWire socket (less compatible with paplay)\n147:     PIPEWIRE_MOUNT=\"-v ${RUNTIME_DIR}/pipewire-0:${RUNTIME_DIR}/pipewire-0\"\n148:     PIPEWIRE_ENV=\"-e PULSE_SERVER=unix:${RUNTIME_DIR}/pipewire-0\"\n149: fi\n150: \n151: \n152: # Check if container already exists and is running\n153: if docker ps -q -f name=\"^${CONTAINER_NAME}$\" | grep -q .; then\n154:     echo \"Container ${CONTAINER_NAME} already running, attaching...\"\n155:     docker exec -it \"${CONTAINER_NAME}\" /usr/bin/zsh -i \"$@\"\n156:     exit $?\n157: fi\n158: \n159: # Check if container exists but is stopped\n160: if docker ps -aq -f name=\"^${CONTAINER_NAME}$\" | grep -q .; then\n161:     echo \"Starting existing container ${CONTAINER_NAME}...\"\n162:     docker start \"${CONTAINER_NAME}\"\n163:     docker exec -it \"${CONTAINER_NAME}\" /usr/bin/zsh -i \"$@\"\n164:     exit $?\n165: fi\n166: \n167: docker run -it --rm \\\n168:     --name \"${CONTAINER_NAME}\" \\\n169:     --network host \\\n170:     --user \"${USER_ID}:${GROUP_ID}\" \\\n171:     -e HOME=/home/user \\\n172:     -e PATH=/home/user/.opencode/bin:/home/user/.bun/bin:/home/user/.ocx/bin:/home/user/bin:/home/user/.local/bin:/home/user/go/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin \\\n173:     -v \"$(pwd)\":/home/user/project \\\n174:     -v \"${HOME}/.opencode:/home/user/.opencode\" \\\n175:     -v \"${HOME}/.config/opencode:/home/user/.config/opencode\" \\\n176:     -v \"${LOCAL_VOLUME}:/home/user/.local\" \\\n177:     -v \"${HOME}/.local/share/opencode:/home/user/.local/share/opencode\" \\\n178:     --tmpfs /home/user/.local/state:uid=\"${USER_ID}\",gid=\"${GROUP_ID}\",mode=700 \\\n179:     -v \"${HOME}/.local/state/opencode:/home/user/.local/state/opencode\" \\\n180:     -e AGENT_BROWSER_SOCKET_DIR=/home/user/.local/state/agent-browser \\\n181:     -e AGENT_BROWSER_HOME=/opt/agent-browser \\\n182:     -v \"${HOME}/.gitconfig:/home/user/.gitconfig.host:ro\" \\\n183:     ${GITCONFIG_MOUNT} \\\n184:     -v \"${HOME}/.gnupg:/home/user/.gnupg\" \\\n185:     -v \"${HOME}/.ssh:/home/user/.ssh:ro\" \\\n186:     -v \"/var/run/docker.sock:/var/run/docker.sock\" \\\n187:     ${GPG_SOCKET_MOUNT} \\\n188:     ${SSH_AUTH_MOUNT} \\\n189:     --tmpfs /home/user/.cache:uid=\"${USER_ID}\",gid=\"${GROUP_ID}\",mode=700 \\\n190:     -v \"${HOME}/.cache/ms-playwright:/home/user/.cache/ms-playwright\" \\\n191:     -v \"${HOME}/.cache/opencode:/home/user/.cache/opencode\" \\\n192:     -v \"${HOME}/.bun/install/cache:/home/user/.bun/install/cache\" \\\n193:     -w /home/user/project \\\n194:     ${DOCKER_GROUP_ADD} \\\n195:     ${KVM_GROUP_ADD} \\\n196:     ${KVM_DEVICE} \\\n197:     -e GIT_CONFIG_GLOBAL=\"${GITCONFIG_PATH}\" \\\n198:     --entrypoint /usr/local/bin/entrypoint.sh \\\n199:     ${GPG_TTY_ENV} \\\n200:     ${SSH_AUTH_ENV} \\\n201:     ${DBUS_MOUNT} \\\n202:     ${DBUS_ENV} \\\n203:     ${PIPEWIRE_MOUNT} \\\n204:     ${PIPEWIRE_ENV} \\\n205:     \"${IMAGE_NAME}\" /usr/bin/zsh -i \"$@\"\n\n(End of file - total 205 lines)\n</content>",
+            "title": "oc",
+            "metadata": {
+              "preview": "#!/bin/bash\n# OpenCode Docker wrapper - run from any directory\n# Symlink this to ~/bin/oc or add to PATH\n#\n# Flags:\n#   -t, --tmux [image]  Run inside a tmux session named after the current directory.\n#                       Optionally accepts a Docker image reference to use instead of\n#                       the default image (e.g. `oc -t myrepo/myimage:tag`).\n\nUSE_TMUX=false\nCUSTOM_IMAGE=\"\"\n\n# Parse flags\nwhile [[ $# -gt 0 ]]; do\n    case \"$1\" in\n        -t|--tmux)\n            USE_TMUX=true\n            shift\n            # If the next argument looks like a Docker image reference (not a flag),\n            # consume it as the custom image name.",
+              "truncated": false,
+              "loaded": []
+            },
+            "time": {
+              "start": 1773409770277,
+              "end": 1773409770281
+            }
+          },
+          "id": "REDACTED",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "msg_ce7758ff0001bHfzfTgfTTBtYE"
+        },
+        {
+          "type": "step-finish",
+          "reason": "tool-calls",
+          "snapshot": "d4973ebeb706f5cf9588bd8d36cbcfc89e5e5c61",
+          "cost": 0,
+          "tokens": {
+            "total": 22515,
+            "input": 262,
+            "output": 75,
+            "reasoning": 0,
+            "cache": {
+              "read": 22178,
+              "write": 0
+            }
+          },
+          "id": "REDACTED",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "msg_ce7758ff0001bHfzfTgfTTBtYE"
+        }
+      ]
+    },
+    {
+      "info": {
+        "role": "assistant",
+        "time": {
+          "created": 1773409770295,
+          "completed": 1773409781038
+        },
+        "parentID": "msg_ce7748014001f5digGrlxCXc0t",
+        "modelID": "claude-sonnet-4.6",
+        "providerID": "github-copilot",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/user/project",
+          "root": "/home/user/project"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 26124,
+          "input": 3358,
+          "output": 327,
+          "reasoning": 0,
+          "cache": {
+            "read": 22439,
+            "write": 0
+          }
+        },
+        "finish": "stop",
+        "id": "REDACTED",
+        "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn"
+      },
+      "parts": [
+        {
+          "type": "step-start",
+          "snapshot": "d4973ebeb706f5cf9588bd8d36cbcfc89e5e5c61",
+          "id": "REDACTED",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "REDACTED"
+        },
+        {
+          "type": "text",
+          "text": "Everything looks correct. Here's a summary of what changed:\n\n**`oc` — changes in the flag-parsing section (lines 1–70)**\n\n1. **`-t [image]` now accepts an optional image argument** — after `shift`-ing `-t`, the parser checks whether the next arg looks like a non-flag token (doesn't start with `-`). If so it's consumed as `CUSTOM_IMAGE`.\n\n2. **Re-exec into tmux preserves the image** — when launching/attaching a tmux session, if `CUSTOM_IMAGE` is set the script re-execs itself with `--image <value>` so the inner invocation picks it up.\n\n3. **`--image` internal flag** — a small block just before `IMAGE_NAME` is set handles this internal flag (used during re-exec). It's also callable directly by users if they prefer: `oc --image myrepo/img:tag`.\n\n4. **`IMAGE_NAME` fallback** — `IMAGE_NAME=\"${CUSTOM_IMAGE:-mheers/opencode-sandbox:latest}\"` — the rest of the script is untouched.\n\n**Usage examples:**\n\n```sh\n# default image in tmux\noc -t\n\n# custom image in tmux\noc -t myrepo/myimage:tag\n\n# custom image without tmux (direct)\noc --image myrepo/myimage:tag\n```",
+          "time": {
+            "start": 1773409781021,
+            "end": 1773409781021
+          },
+          "id": "prt_ce775ab2e001kFvAAqFy6223SU",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "REDACTED"
+        },
+        {
+          "type": "step-finish",
+          "reason": "stop",
+          "snapshot": "d4973ebeb706f5cf9588bd8d36cbcfc89e5e5c61",
+          "cost": 0,
+          "tokens": {
+            "total": 26124,
+            "input": 3358,
+            "output": 327,
+            "reasoning": 0,
+            "cache": {
+              "read": 22439,
+              "write": 0
+            }
+          },
+          "id": "prt_ce775c51e001jS2YHrsx8i71Yx",
+          "sessionID": "ses_3188b7ffcffeWafmZLcVZNInrn",
+          "messageID": "REDACTED"
+        }
+      ]
+    }
+  ]
+}

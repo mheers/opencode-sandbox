@@ -1,0 +1,1 @@
+adjust the "oc -t" that it also accepts an docker image reference as parameter to run in a specified container (and not the default one)
