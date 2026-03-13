@@ -3,9 +3,12 @@
 # Symlink this to ~/bin/oc or add to PATH
 #
 # Flags:
-#   -t, --tmux    Run inside a tmux session named after the current directory
+#   -t, --tmux [image]  Run inside a tmux session named after the current directory.
+#                       Optionally accepts a Docker image reference to use instead of
+#                       the default image (e.g. `oc -t myrepo/myimage:tag`).
 
 USE_TMUX=false
+CUSTOM_IMAGE=""
 
 # Parse flags
 while [[ $# -gt 0 ]]; do
@@ -13,6 +16,12 @@ while [[ $# -gt 0 ]]; do
         -t|--tmux)
             USE_TMUX=true
             shift
+            # If the next argument looks like a Docker image reference (not a flag),
+            # consume it as the custom image name.
+            if [[ $# -gt 0 && "$1" != -* ]]; then
+                CUSTOM_IMAGE="$1"
+                shift
+            fi
             ;;
         --)
             shift
@@ -34,16 +43,31 @@ if [ "${USE_TMUX}" = true ]; then
         # Already inside tmux — check if it's the right session
         CURRENT_SESSION=$(tmux display-message -p '#S')
         if [ "${CURRENT_SESSION}" = "${TMUX_SESSION}" ]; then
-            # Already in the target session, just run oc normally
-            exec "${SELF}" "$@"
+            # Already in the target session, just run oc normally (pass image if set)
+            if [ -n "${CUSTOM_IMAGE}" ]; then
+                exec "${SELF}" --image "${CUSTOM_IMAGE}" "$@"
+            else
+                exec "${SELF}" "$@"
+            fi
         fi
     fi
 
     # Launch or attach to the tmux session, running oc inside it
-    exec tmux new-session -A -s "${TMUX_SESSION}" "${SELF}" "$@"
+    if [ -n "${CUSTOM_IMAGE}" ]; then
+        exec tmux new-session -A -s "${TMUX_SESSION}" "${SELF}" --image "${CUSTOM_IMAGE}" "$@"
+    else
+        exec tmux new-session -A -s "${TMUX_SESSION}" "${SELF}" "$@"
+    fi
 fi
 
-IMAGE_NAME="mheers/opencode-sandbox:latest"
+# Internal flag --image: passes a custom Docker image reference when re-execing
+# from within the tmux branch above. Users may also call it directly.
+if [[ $# -gt 0 && "$1" == "--image" ]]; then
+    CUSTOM_IMAGE="$2"
+    shift 2
+fi
+
+IMAGE_NAME="${CUSTOM_IMAGE:-mheers/opencode-sandbox:latest}"
 # Generate unique container name based on current directory
 DIR_HASH=$(echo "$(pwd)" | md5sum | cut -c1-8)
 CONTAINER_NAME="opencode-${DIR_HASH}"
