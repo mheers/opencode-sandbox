@@ -1,0 +1,33 @@
+{
+  "cli_version": "dev",
+  "checkpoint_id": "1b19b79cc33a",
+  "session_id": "ses_32d2e226bffej07ABfpVbY6bZG",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-13T15:40:13.713348019Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "Dockerfile"
+  ],
+  "agent": "OpenCode",
+  "turn_id": "d7939dbd2fe3",
+  "token_usage": {
+    "input_tokens": 65771,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1490998,
+    "output_tokens": 7483,
+    "api_call_count": 38
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-13T15:40:13.639397126Z",
+    "agent_lines": 29,
+    "human_added": 125,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 154,
+    "agent_percentage": 18.83116883116883
+  }
+}
