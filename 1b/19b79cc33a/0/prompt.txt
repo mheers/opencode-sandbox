@@ -1,0 +1,11 @@
+check the current git changes. I get an error that the container has no CAP_MKNOD that needs to be passed and starts with --device
+
+---
+
+hm, lsusb confirms that the device is there, but my internal code shows Start the container with --device /dev/bus/usb/BUS/DEV:/dev/bus/usb/BUS/DEV
+
+---
+
+irread: auto-detect: device 0b48:2003 not found under /dev/bus/usb
+
+Start the container with --device /dev/bus/usb/BUS/DEV:/dev/bus/usb/BUS/DEV
